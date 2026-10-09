@@ -1,0 +1,14 @@
+**/target/
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/.pytest_cache/
+.env
+infra/.env
+.local/
+.venv/
+.DS_Store
+*.log
+**/test-results/
+**/playwright-report/
+**/*.tsbuildinfo
