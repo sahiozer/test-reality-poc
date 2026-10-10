@@ -1,5 +1,7 @@
 # Test Reality — narrow working POC
 
+**POC STATUS: COMPLETE / PASS — technically frozen for executive demo.** See the [completion seal](docs/POC_COMPLETION.md).
+
 A database-derived comparison of synthetic production-reference and test environments. The complete slice is PostgreSQL → fingerprints → business-state coverage → findings → persisted Spring API → React dashboard. The droplet also has an optional local Ollama Turkish explanation layer; analysis remains deterministic. There is no repair action, authentication, or Oracle integration. See [LLM integration](docs/LLM_INTEGRATION.md) for the remote-only setup and fallback.
 
 ## Project

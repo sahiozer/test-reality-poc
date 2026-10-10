@@ -1,0 +1,27 @@
+{
+  "directories": {
+    "/opt/binancebot": {
+      "entries": 164,
+      "sha256": "ff175d1eeee5dd2eb4a5e54454e67d4b9cf55d389fc2c583714f578d48464dea"
+    },
+    "/opt/liquidation-pilot-v1": {
+      "entries": 12253,
+      "sha256": "3fbc8cd3ff8a7e530e15d42eccc48fb132da5da793ca5d79d94b6e94f8ca9ce8"
+    },
+    "/opt/liquidation-recorder-v1": {
+      "entries": 516,
+      "sha256": "a489da35aea50ea7332fe8b23911a88095327abfc8d2cfd8d83721eaaf70c7f5"
+    }
+  },
+  "images": [
+    "binancebot-paper:forward-alpha-observe-v9-lean-storage sha256:3e8dbd28409e3d1109740c780c65c52c24f24cc759325ff9776f255c19a2364b"
+  ],
+  "networks": [
+    "app_default c057cc415e99cd43ab56627f59aef65105ab8c9c5d223dd9e309f5cb66ae9200",
+    "bridge 87b115a2c2912e1fb86d58d502ed3046718ed5e20405551cfa9e181d86a6225e",
+    "forward-observe_default 159f5d8fc2d6a89411b6c2fca30fd86af4ebf0aa0248f896b6994e42a9a90d6d",
+    "host 4972bf94a6799cc22eea2fd9869f6679d97f6c4d57c17243ed545663cab8e62d",
+    "none c68b2acfd2cac54daff092866bdee7e5c22971e878b4f20906796519fd9f4cf5"
+  ],
+  "recorder_state": "ActiveState=inactive\nSubState=dead\nUnitFileState=disabled"
+}

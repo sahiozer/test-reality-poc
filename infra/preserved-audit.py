@@ -1,4 +1,5 @@
 """Read-only digest inventory of the resources this deployment must preserve."""
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -33,5 +34,35 @@ def inventory():
             "recorder_state": subprocess.check_output(["systemctl", "show", "liquidation-recorder-v1.service", "--property=ActiveState,SubState,UnitFileState"], text=True).strip()}
 
 
+def compare(baseline, current):
+    """Preserve baseline identities; additional deployment resources are allowed."""
+    differences = []
+    for directory, expected in baseline["directories"].items():
+        if current["directories"].get(directory) != expected:
+            differences.append("Protected directory changed: " + directory)
+    for kind in ("images", "networks"):
+        actual = dict(record.rsplit(" ", 1) for record in current[kind])
+        for record in baseline[kind]:
+            name, identifier = record.rsplit(" ", 1)
+            if actual.get(name) != identifier:
+                differences.append("Protected " + kind + " missing or replaced: " + name)
+    if current["recorder_state"] != baseline["recorder_state"]:
+        differences.append("Protected recorder service state changed")
+    return {"status": "FAIL" if differences else "PASS", "differences": differences,
+            "protected_directories": len(baseline["directories"]),
+            "protected_images": len(baseline["images"]),
+            "protected_networks": len(baseline["networks"])}
+
+
 if __name__ == "__main__":
-    print(json.dumps(inventory(), sort_keys=True))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--baseline", type=Path, help="Original protected-resource inventory; additions are allowed")
+    args = parser.parse_args()
+    current = inventory()
+    if args.baseline:
+        baseline_bytes = args.baseline.read_bytes()
+        result = compare(json.loads(baseline_bytes), current)
+        result["baseline_sha256"] = hashlib.sha256(baseline_bytes).hexdigest()
+        print(json.dumps(result, sort_keys=True))
+        raise SystemExit(0 if result["status"] == "PASS" else 1)
+    print(json.dumps(current, sort_keys=True))

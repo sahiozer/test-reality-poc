@@ -1,6 +1,6 @@
 # Micro RAG: trusted context for explanations
 
-**Status: complete local validation passed; remote deployment and fresh async validation are next.**
+**Status: COMPLETE / PASS — deployed and technically frozen for executive demo.** See the [completion seal](POC_COMPLETION.md) for final remote timings, runtime and preservation audit.
 
 RAG does not discover the finding. It retrieves relevant domain context for the finding explanation.
 
