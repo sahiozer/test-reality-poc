@@ -82,3 +82,5 @@ python3 infra/smoke.py
 Keep at least 10 GiB free disk. Use bounded uploads and single-job analysis; this POC has no unbounded data ingestion. Logs are limited to 2 × 5 MiB per service. Monitor the project's volume and image growth; memory caps do not impose storage quotas. Co-hosting shares a kernel and Docker daemon. Reassess capacity before restarting trading workloads or increasing data/model scope.
 
 See [architecture](docs/ARCHITECTURE.md), [fingerprint definitions](docs/FINGERPRINT.md), [demo flow](docs/DEMO_FLOW.md), and [validation report](docs/VALIDATION.md).
+
+Micro RAG supplies a tiny domain glossary and explicit demo-rule retrieval. Explanations run asynchronously with immediate evidence/context, four-second polling and PostgreSQL persistence. See [Micro RAG](docs/MICRO_RAG.md). Deterministic findings remain unchanged; ML experiments were not integrated.

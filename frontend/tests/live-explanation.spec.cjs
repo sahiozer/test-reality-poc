@@ -1,14 +1,14 @@
 const {test,expect}=require('@playwright/test');
 test('remote model explains an actual missing state without blocking the dashboard',async({page,request})=>{
   test.skip(process.env.LLM_LIVE!=='1','Remote-only inference; no Ollama on the Mac');
-  test.setTimeout(100000);
+  test.setTimeout(160000);
   const findings=await(await request.get('/api/findings')).json();
   const f=findings.filter(f=>f.finding_type==='MISSING_STATE').at(-1);
   await page.goto('/');await page.getByRole('button',{name:'Missing states',exact:true}).click();
   await page.locator('.pattern-button').filter({hasText:f.title}).click();
   const dialog=page.getByRole('dialog');
   await expect(dialog.locator('pre').first()).toContainText(String(f.evidence.prod_count));
-  await expect(dialog.getByText('Local on-prem model')).toBeVisible({timeout:90000});
+  await expect(dialog.getByText('Local on-prem model')).toBeVisible({timeout:145000});
   await expect(dialog.locator('.ai-explanation p')).toContainText('PROD');
   await expect(dialog.locator('.ai-explanation p')).toContainText('TEST');
   await dialog.locator('.ai-explanation').scrollIntoViewIfNeeded();

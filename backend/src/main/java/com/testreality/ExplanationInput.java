@@ -11,6 +11,28 @@ import java.util.List;
 /** Only engine evidence enters this contract. Display formatting is not metric calculation. */
 public record ExplanationInput(ObjectNode evidence, String subject, String assessmentText,
                                List<String> requiredValues, String prodText, String testText) {
+    public ExplanationInput withContext(JsonNode chunks, String knowledgeVersion) {
+        ObjectNode enriched = evidence.deepCopy();
+        enriched.set("retrievedContext", chunks.deepCopy());
+        enriched.put("knowledgeVersion", knowledgeVersion);
+        String reference = "";
+        String contextualAssessment = assessmentText;
+        if (!chunks.isEmpty()) {
+            JsonNode first = chunks.get(0);
+            reference = first.path("sourceType").asText().equals("BUSINESS_RULE")
+                    ? first.path("id").asText()+": "+first.path("content").asText()
+                    : "Test Reality tanımı: "+first.path("content").asText();
+            if (first.path("sourceType").asText().equals("BUSINESS_RULE")) {
+                enriched.put("retrievedRuleSource","curated_demo_knowledge");
+                enriched.put("retrievedRuleId",first.path("id").asText());
+                contextualAssessment = "Bu kayıtlar, getirilen demo iş kuralı bağlamında veri sağlığı incelemesine adaydır.";
+            }
+        }
+        enriched.put("contextReference",reference);
+        enriched.put("assessmentText",contextualAssessment);
+        return new ExplanationInput(enriched,subject,contextualAssessment,requiredValues,prodText,testText);
+    }
+    public String contextReference() { return evidence.path("contextReference").asText(); }
     public static ExplanationInput from(JsonNode finding, ObjectMapper mapper) {
         String type = finding.path("finding_type").asText();
         JsonNode e = finding.path("evidence");

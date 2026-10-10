@@ -42,16 +42,14 @@ export function App() {
     if (!selected || selected.aiExplanationStatus!=='PENDING') return;
     let cancelled=false;
     const controller=new AbortController();
-    const started=Date.now();
     let timer:ReturnType<typeof setTimeout>;
     const poll=async()=>{
       try {
         const detail=await api<FindingDetail>(`/findings/${encodeURIComponent(selected.finding_id)}`,{signal:controller.signal});
         if (cancelled) return;
         if (detail.aiExplanationStatus!=='PENDING') {setSelected(detail);return;}
-        if (Date.now()-started>80000) {setSelected({...detail,aiExplanation:detail.deterministicSummary,aiExplanationStatus:'FALLBACK'});return;}
         setSelected(detail);
-        timer=setTimeout(()=>void poll(),1000);
+        timer=setTimeout(()=>void poll(),4000);
       } catch {
         if (!cancelled) setSelected(current=>current?{...current,aiExplanation:current.deterministicSummary,aiExplanationStatus:'FALLBACK'}:null);
       }
@@ -143,6 +141,6 @@ export function App() {
         </>}
       </main>
     </div>
-    {selected&&<div className="modal-backdrop" onClick={closeDetail}><section className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={e=>e.stopPropagation()}><div className="detail-top"><span className="eyebrow">FINDING EVIDENCE</span><button ref={detailClose} className="icon-button" aria-label="Close finding" onClick={closeDetail}><X size={20}/></button></div><span className="assessment gap">{selected.finding_type.replaceAll('_',' ')}</span><h2 id="detail-title">{selected.title}</h2><p>{selected.deterministicSummary}</p><div className="detail-values"><div><span>PROD REFERENCE</span><strong>{value(selected,'prod')}</strong></div><div><span>TEST</span><strong>{value(selected,'test')}</strong></div></div><h3>Structured evidence</h3><pre>{JSON.stringify(selected.evidence,null,2)}</pre><h3>Explanation-ready evidence</h3><pre>{JSON.stringify(selected.explanation_ready,null,2)}</pre><section className="ai-explanation" aria-labelledby="ai-explanation-title"><h3 id="ai-explanation-title">AI Explanation</h3>{selected.aiExplanationStatus==='PENDING'?<p role="status">Yerel açıklama hazırlanıyor…</p>:<><p lang="tr">{selected.aiExplanation||selected.deterministicSummary}</p><small>{selected.aiExplanationStatus==='GENERATED'?'Local on-prem model':'Template fallback'}</small></>}</section><div className="detail-meta"><strong>{selected.severity} assessment</strong><span>Calculated {date(selected.generated_at)}</span><code>{selected.finding_id}</code></div></section></div>}
+    {selected&&<div className="modal-backdrop" onClick={closeDetail}><section className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={e=>e.stopPropagation()}><div className="detail-top"><span className="eyebrow">FINDING EVIDENCE</span><button ref={detailClose} className="icon-button" aria-label="Close finding" onClick={closeDetail}><X size={20}/></button></div><span className="assessment gap">{selected.finding_type.replaceAll('_',' ')}</span><h2 id="detail-title">{selected.title}</h2><p>{selected.deterministicSummary}</p><div className="detail-values"><div><span>PROD REFERENCE</span><strong>{value(selected,'prod')}</strong></div><div><span>TEST</span><strong>{value(selected,'test')}</strong></div></div><section className="context-used" aria-labelledby="context-used-title"><h3 id="context-used-title">Context used</h3>{selected.retrievedContext?.length?<ul>{selected.retrievedContext.map(chunk=><li key={chunk.id}><strong>{chunk.title}</strong><small>{chunk.sourceType==='BUSINESS_RULE'?'Business Rule':chunk.sourceType==='GLOSSARY'?'Glossary':'Domain Definition'}</small><p lang="tr">{chunk.content}</p></li>)}</ul>:<p>{selected.aiExplanationStatus==='PENDING'?'Retrieving local domain context…':'No relevant domain context available; explanation uses structured evidence.'}</p>}</section><h3>Structured evidence</h3><pre>{JSON.stringify(selected.evidence,null,2)}</pre><h3>Explanation-ready evidence</h3><pre>{JSON.stringify(selected.explanation_ready,null,2)}</pre><section className="ai-explanation" aria-labelledby="ai-explanation-title"><h3 id="ai-explanation-title">AI Explanation</h3><small>Status: {selected.aiExplanationStatus}</small>{selected.aiExplanationStatus==='PENDING'?<p role="status">Local on-prem AI explanation is being generated…</p>:<><p lang="tr">{selected.aiExplanation||selected.deterministicSummary}</p><small>{selected.aiExplanationStatus==='GENERATED'?'Local on-prem model':'Template fallback'}</small></>}</section><div className="detail-meta"><strong>{selected.severity} assessment</strong><span>Calculated {date(selected.generated_at)}</span><code>{selected.finding_id}</code></div></section></div>}
   </div>;
 }

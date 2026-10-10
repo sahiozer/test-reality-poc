@@ -15,7 +15,7 @@ for(const mode of ['GENERATED','FALLBACK']) {
     await page.locator('.pattern-button').filter({hasText:f.title}).click();
     const dialog=page.getByRole('dialog');
     await expect(dialog.locator('pre').first()).toContainText('"test_count": 0');
-    await expect(dialog.getByText('Yerel açıklama hazırlanıyor…')).toBeVisible();
+    await expect(dialog.getByText('Local on-prem AI explanation is being generated…')).toBeVisible();
     await expect(dialog.getByText(mode==='GENERATED'?'Local on-prem model':'Template fallback')).toBeVisible({timeout:10000});
     await expect(dialog.getByText('PROD ve TEST değerleri kanıttan alınmıştır.')).toBeVisible();
     await expect(dialog.locator('pre').first()).toContainText(String(f.evidence.prod_count));

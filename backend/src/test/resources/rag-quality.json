@@ -1,0 +1,197 @@
+[
+  {
+    "name": "health-no-configured-rule",
+    "source": "actual engine finding",
+    "finding": {
+      "title": "Closed customers with active accounts",
+      "evidence": {
+        "unit": "customers",
+        "metric": "closed_customers_with_active_accounts",
+        "calculation_method": "COUNT customers WHERE customer.status=CLOSED AND at least one account.status=ACTIVE"
+      },
+      "severity": "HIGH",
+      "assessment": "TEST contains closed customers whose accounts remain active.",
+      "finding_id": "f792115d-ec01-4956-b76b-b314798a321a:DATA_HEALTH_ISSUE:closed_customers_with_active_accounts",
+      "prod_value": 0,
+      "test_value": 2023,
+      "explanation": "TEST contains closed customers whose accounts remain active.",
+      "finding_type": "DATA_HEALTH_ISSUE",
+      "generated_at": "2026-10-09T23:27:11.782407+00:00",
+      "explanation_ready": {
+        "rule": "DATA_HEALTH_ISSUE",
+        "evidence": {
+          "unit": "customers",
+          "metric": "closed_customers_with_active_accounts",
+          "calculation_method": "COUNT customers WHERE customer.status=CLOSED AND at least one account.status=ACTIVE"
+        },
+        "prod_value": 0,
+        "test_value": 2023
+      }
+    },
+    "expectedChunk": "BR-CUSTOMER-001"
+  },
+  {
+    "name": "representation-1",
+    "source": "actual engine finding",
+    "finding": {
+      "title": "Customers with two or more active accounts",
+      "evidence": {
+        "unit": "fraction",
+        "metric": "multi_account_rate",
+        "prod_count": 38963,
+        "prod_total": 120000,
+        "test_count": 9013,
+        "test_total": 120000,
+        "calculation_method": "customers with >=2 ACTIVE accounts / all customers",
+        "gap_percentage_points": 24.958333333333332,
+        "threshold_percentage_points": 5
+      },
+      "severity": "HIGH",
+      "assessment": "TEST trails PROD by 24.96 percentage points.",
+      "finding_id": "f792115d-ec01-4956-b76b-b314798a321a:REPRESENTATION_GAP:multi_account_rate",
+      "prod_value": 0.32469166666666666,
+      "test_value": 0.07510833333333333,
+      "explanation": "TEST trails PROD by 24.96 percentage points.",
+      "finding_type": "REPRESENTATION_GAP",
+      "generated_at": "2026-10-09T23:27:11.782407+00:00",
+      "explanation_ready": {
+        "rule": "REPRESENTATION_GAP",
+        "evidence": {
+          "unit": "fraction",
+          "metric": "multi_account_rate",
+          "prod_count": 38963,
+          "prod_total": 120000,
+          "test_count": 9013,
+          "test_total": 120000,
+          "calculation_method": "customers with >=2 ACTIVE accounts / all customers",
+          "gap_percentage_points": 24.958333333333332,
+          "threshold_percentage_points": 5
+        },
+        "prod_value": 0.32469166666666666,
+        "test_value": 0.07510833333333333
+      }
+    },
+    "expectedChunk": "REPRESENTATION_GAP"
+  },
+  {
+    "name": "freshness",
+    "source": "actual engine finding",
+    "finding": {
+      "title": "TEST business timestamps lag behind PROD",
+      "evidence": {
+        "unit": "timestamp",
+        "prod_latest": "2026-10-10T00:00:00+00:00",
+        "test_latest": "2026-08-26T00:00:00+00:00",
+        "test_age_days": 44.977219703784726,
+        "threshold_days": 7,
+        "calculation_method": "MAX(customer.created_at, account.opened_at) per environment; PROD max minus TEST max",
+        "age_difference_days": 45.0
+      },
+      "severity": "MEDIUM",
+      "assessment": "TEST's latest business timestamp is 45.0 days behind PROD.",
+      "finding_id": "f792115d-ec01-4956-b76b-b314798a321a:FRESHNESS_GAP:FRESHNESS_GAP",
+      "prod_value": "2026-10-10T00:00:00+00:00",
+      "test_value": "2026-08-26T00:00:00+00:00",
+      "explanation": "TEST's latest business timestamp is 45.0 days behind PROD.",
+      "finding_type": "FRESHNESS_GAP",
+      "generated_at": "2026-10-09T23:27:11.782407+00:00",
+      "explanation_ready": {
+        "rule": "FRESHNESS_GAP",
+        "evidence": {
+          "unit": "timestamp",
+          "prod_latest": "2026-10-10T00:00:00+00:00",
+          "test_latest": "2026-08-26T00:00:00+00:00",
+          "test_age_days": 44.977219703784726,
+          "threshold_days": 7,
+          "calculation_method": "MAX(customer.created_at, account.opened_at) per environment; PROD max minus TEST max",
+          "age_difference_days": 45.0
+        },
+        "prod_value": "2026-10-10T00:00:00+00:00",
+        "test_value": "2026-08-26T00:00:00+00:00"
+      }
+    },
+    "expectedChunk": "DATA_FRESHNESS"
+  },
+  {
+    "name": "missing-1",
+    "source": "actual engine finding",
+    "finding": {
+      "title": "Retail \u00b7 2+ active accounts \u00b7 no FX \u00b7 no active loan \u00b7 active card \u00b7 blocked account",
+      "evidence": {
+        "unit": "customers",
+        "features": {
+          "customer_type": "RETAIL",
+          "has_fx_account": false,
+          "has_active_card": true,
+          "has_active_loan": false,
+          "has_blocked_account": true,
+          "account_count_bucket": "2+"
+        },
+        "state_id": "2121d96bf5d46bcd",
+        "assessment": "MISSING",
+        "prod_count": 734,
+        "test_count": 0,
+        "thresholds": {
+          "minimum_support": 100,
+          "minimum_prevalence": 0.001,
+          "underrepresentation_prevalence_ratio": 0.5
+        },
+        "prod_prevalence": 0.006116666666666667,
+        "test_prevalence": 0.0,
+        "calculation_method": "exact six-feature state match after per-customer relational aggregation",
+        "represented_in_test": false
+      },
+      "severity": "HIGH",
+      "assessment": "This state occurs for 734 PROD customers and no TEST customers.",
+      "finding_id": "f792115d-ec01-4956-b76b-b314798a321a:MISSING_STATE:2121d96bf5d46bcd",
+      "prod_value": 734,
+      "test_value": 0,
+      "explanation": "This state occurs for 734 PROD customers and no TEST customers.",
+      "finding_type": "MISSING_STATE",
+      "generated_at": "2026-10-09T23:27:11.782407+00:00",
+      "explanation_ready": {
+        "rule": "MISSING_STATE",
+        "evidence": {
+          "unit": "customers",
+          "features": {
+            "customer_type": "RETAIL",
+            "has_fx_account": false,
+            "has_active_card": true,
+            "has_active_loan": false,
+            "has_blocked_account": true,
+            "account_count_bucket": "2+"
+          },
+          "state_id": "2121d96bf5d46bcd",
+          "assessment": "MISSING",
+          "prod_count": 734,
+          "test_count": 0,
+          "thresholds": {
+            "minimum_support": 100,
+            "minimum_prevalence": 0.001,
+            "underrepresentation_prevalence_ratio": 0.5
+          },
+          "prod_prevalence": 0.006116666666666667,
+          "test_prevalence": 0.0,
+          "calculation_method": "exact six-feature state match after per-customer relational aggregation",
+          "represented_in_test": false
+        },
+        "prod_value": 734,
+        "test_value": 0
+      }
+    },
+    "expectedChunk": "MISSING_STATE"
+  },
+  {
+    "name": "unrelated",
+    "source": "validation-only synthetic unrelated finding",
+    "finding": {
+      "finding_id": "unrelated",
+      "finding_type": "UNRELATED",
+      "evidence": {
+        "text": "CLOSED customer active account business rule"
+      },
+      "explanation": "Unrelated"
+    },
+    "expectedChunk": null
+  }
+]

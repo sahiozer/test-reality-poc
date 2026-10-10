@@ -120,7 +120,7 @@ class FindingExplanationTest {
         var adapter=mock(OllamaFindingExplanationService.class);var template=new TemplateFindingExplanationService();
         CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);
         when(adapter.explain(any())).thenAnswer(call->{entered.countDown();release.await(2,TimeUnit.SECONDS);return "generated";});
-        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,template,adapter,true))) {
+        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,template,adapter,true,new DomainContextRetriever(mapper),new MemoryExplanations()))) {
             var f=finding();var before=f.deepCopy();var first=c.value.detail(f);
             assertEquals("PENDING",first.path("aiExplanationStatus").asText());assertTrue(entered.await(1,TimeUnit.SECONDS));
             assertEquals("PENDING",c.value.detail(f).path("aiExplanationStatus").asText());
@@ -132,7 +132,7 @@ class FindingExplanationTest {
     @Test void allAdapterFailuresFallBackWithoutRetryOrMetricMutation() throws Exception {
         for(Exception failure:new Exception[]{new HttpTimeoutException("timeout"),new java.net.ConnectException("unavailable"),new IllegalArgumentException("malformed")}) {
             var adapter=mock(OllamaFindingExplanationService.class);when(adapter.explain(any())).thenThrow(failure);
-            try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,true))) {
+            try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,true,new DomainContextRetriever(mapper),new MemoryExplanations()))) {
                 var f=finding();var before=f.deepCopy();c.value.detail(f);awaitStatus(c.value,f,"FALLBACK");
                 assertEquals(c.value.detail(f).path("deterministicSummary"),c.value.detail(f).path("aiExplanation"));assertEquals(before,f);
                 verify(adapter,times(1)).explain(any());
@@ -141,11 +141,11 @@ class FindingExplanationTest {
     }
     @Test void disabledAndBusyWorkersReturnImmediateFallback() throws Exception {
         var adapter=mock(OllamaFindingExplanationService.class);
-        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,false))) {
+        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,false,new DomainContextRetriever(mapper),new MemoryExplanations()))) {
             assertEquals("FALLBACK",c.value.detail(finding()).path("aiExplanationStatus").asText());verifyNoInteractions(adapter);
         }
         CountDownLatch release=new CountDownLatch(1);when(adapter.explain(any())).thenAnswer(call->{release.await(2,TimeUnit.SECONDS);return "generated";});
-        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,true))) {
+        try(varClose c=new varClose(new FindingExplanationCoordinator(mapper,new TemplateFindingExplanationService(),adapter,true,new DomainContextRetriever(mapper),new MemoryExplanations()))) {
             c.value.detail(finding());assertEquals("FALLBACK",c.value.detail(cases().get(1).get("finding")).path("aiExplanationStatus").asText());release.countDown();
         }
     }

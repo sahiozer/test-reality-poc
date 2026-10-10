@@ -1,0 +1,175 @@
+{
+  "version": "demo-1",
+  "chunks": [
+    {
+      "id": "CUSTOMER_STATUS",
+      "title": "CUSTOMER_STATUS",
+      "sourceType": "GLOSSARY",
+      "content": "Bu demo şemasında OPEN müşteri ilişkisinin açık, CLOSED müşteri ilişkisinin kapalı olduğunu belirtir. Müşteri için ACTIVE statüsü kullanılmaz.",
+      "keywords": "customer status CLOSED OPEN customer/account relationship",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE"
+      ]
+    },
+    {
+      "id": "CUSTOMER_TYPE",
+      "title": "RETAIL / CORPORATE",
+      "sourceType": "GLOSSARY",
+      "content": "RETAIL bireysel, CORPORATE kurumsal müşteri türünü belirtir; tek başına önem veya risk düzeyi belirtmez.",
+      "keywords": "customer_type RETAIL CORPORATE bireysel kurumsal",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "ACCOUNT_STATUS",
+      "title": "ACCOUNT_STATUS",
+      "sourceType": "GLOSSARY",
+      "content": "ACTIVE açık ve kullanılabilir hesap statüsünü, CLOSED kapatılmış hesap statüsünü belirtir.",
+      "keywords": "account status active closed active account customer/account relationship",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE"
+      ]
+    },
+    {
+      "id": "FX_ACCOUNT",
+      "title": "FX account",
+      "sourceType": "GLOSSARY",
+      "content": "Bu demoda TRY dışındaki para biriminde tutulan hesap döviz hesabıdır; kapalı hesaplar da FX varlığına dahil edilir.",
+      "keywords": "has_fx_account FX foreign currency döviz",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "ACTIVE_ACCOUNT_COUNT",
+      "title": "Active account count",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Aktif hesap sayısı yalnızca ACTIVE statüsündeki hesapları sayar; toplam hesap sayısı CLOSED hesapları da içerir.",
+      "keywords": "active_account_count account_count_bucket active accounts 0 1 2+",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE",
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "ACTIVE_LOAN",
+      "title": "Active loan",
+      "sourceType": "GLOSSARY",
+      "content": "Aktif kredi varlığı müşterinin en az bir ACTIVE statüsünde kredisi bulunduğunu belirtir; kapalı krediler dahil edilmez.",
+      "keywords": "has_active_loan active loan aktif kredi",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "BLOCKED_ACCOUNT",
+      "title": "Blocked account",
+      "sourceType": "GLOSSARY",
+      "content": "Blokeli hesap varlığı en az bir hesabın blocked_flag değerinin true olmasıdır; hesap statüsünden bağımsızdır.",
+      "keywords": "has_blocked_account blocked account blokeli",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "ACTIVE_CARD",
+      "title": "Active card",
+      "sourceType": "GLOSSARY",
+      "content": "Aktif kart varlığı en az bir kartın ACTIVE statüsünde olduğunu belirtir; kart adedi veya müşteri önemini belirtmez.",
+      "keywords": "has_active_card active card aktif kart",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "BR-CUSTOMER-001",
+      "title": "BR-CUSTOMER-001 — Closed customer / active account",
+      "sourceType": "BUSINESS_RULE",
+      "content": "Kapalı müşteri statüsündeki müşterilerin aktif hesabı bulunmamalıdır.",
+      "keywords": "CLOSED customer active account customer status business rule data health customer/account relationship",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE"
+      ],
+      "ruleEnglish": "If customer status is CLOSED, active account count must be 0.",
+      "appliesToMetric": "closed_customers_with_active_accounts"
+    },
+    {
+      "id": "DATA_FRESHNESS",
+      "title": "Data freshness",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Veri güncelliği müşteri oluşturma ve hesap açılış tarihlerinin en son değerine göre ölçülür; analiz çalışma zamanı değildir.",
+      "keywords": "FRESHNESS_GAP freshness business timestamps prod_latest test_latest age_difference_days güncellik",
+      "findingTypes": [
+        "FRESHNESS_GAP"
+      ]
+    },
+    {
+      "id": "REPRESENTATION_GAP",
+      "title": "Representation gap",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Representation gap bir veri durumunun TEST içinde PROD referansına göre daha az temsil edilmesidir; bu fark tek başına onarım kararı değildir.",
+      "keywords": "REPRESENTATION_GAP representation gap multi_account_rate reference definition",
+      "findingTypes": [
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "UNDERREPRESENTED_STATE",
+      "title": "Underrepresented state",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Bu POC için underrepresented state, TEST oranının PROD oranının yarısından düşük olduğu anlamına gelir; eşik genel bir kurum politikası değildir.",
+      "keywords": "REPRESENTATION_GAP underrepresented state prod_prevalence test_prevalence",
+      "findingTypes": [
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "MISSING_STATE",
+      "title": "Missing state",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Missing state yeterli PROD desteğine sahip bir altı özellikli veri durumunun TEST içinde hiç bulunmamasıdır; nedeni bu kanıttan belirlenemez.",
+      "keywords": "MISSING_STATE missing state zero test_count coverage definition",
+      "findingTypes": [
+        "MISSING_STATE"
+      ]
+    },
+    {
+      "id": "TEST_ENVIRONMENT",
+      "title": "TEST environment",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "TEST kontrollü test ortamıdır; PROD ile aynı satır sayısına sahip olması aynı veri durumlarını içerdiği anlamına gelmez.",
+      "keywords": "TEST environment test_env test",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "FRESHNESS_GAP"
+      ]
+    },
+    {
+      "id": "PROD_REFERENCE",
+      "title": "PROD reference / fingerprint",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "PROD snapshot bu demodaki üretim referansıdır; fingerprint hesaplanan veri özelliklerini gösterir, ham müşteri kayıtlarını veya gerçek banka verisini içermez.",
+      "keywords": "PROD reference fingerprint prod_snapshot reference definition",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "FRESHNESS_GAP",
+        "HEALTHY_STATE"
+      ]
+    }
+  ]
+}
