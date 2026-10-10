@@ -109,3 +109,23 @@ To re-establish the tunnel when needed:
 Local evidence artifacts are ignored by Git: `.local/local-smoke.json`, `.local/remote-smoke.json`, `.local/remote-result.json`, `.local/remote-analysis-summary.json`, `.local/remote-browser.log`, `.local/deployment-preflight.json`, `.local/remote-audit.json`, and local/remote dashboard screenshots. Database snapshots/findings are also persisted remotely in the `metadata` schema.
 
 The updated [five-minute demo](DEMO_FLOW.md) explains that distribution differences require interpretation against intended test scope, then shows state coverage, missing-state examples, health, freshness and evidence. AI/LLM explanation remains the next layer. No Ollama, LLM, repair generation, Oracle or authentication was added.
+
+## Optional local LLM explanation release
+
+The earlier results above describe the pre-LLM baseline. This release preserves those analytical semantics and metrics, adding only an optional finding-detail explanation.
+
+Local validation: 15 Java tests pass (one additional remote-response test is deferred until remote inference); 12 Python tests pass; TypeScript/Vite production build passes; six browser tests pass, including the original executive flow, generated/loading and mobile/transport fallback. Independent SQL/API smoke confirms 31 findings, 130 fingerprints, 70 significant states, 44 represented, 26 missing, two underrepresented, 38,963/9,013 multi-account customers, 2,023 TEST health candidates and a 45-day freshness gap.
+
+Java tests use an HTTP stub and never install/run Ollama locally. The nine-case remote model quality set and resource measurements are documented in [LLM integration](LLM_INTEGRATION.md).
+
+Final release checks: **16/16 Java tests**, **12/12 Python tests**, production frontend build, **6/6 local browser tests**, **7/7 remote browser tests** (including one real-model desktop/mobile test), **9/9 constrained remote quality cases**, and independent local/remote SQL/API smoke all pass. The remote browser executive flow reran analysis successfully. Every business metric matched the pre-LLM deployed baseline; table counts, 31 findings, 130 fingerprint metrics, 70/44/26/2 coverage counts and the 45-day freshness gap remain unchanged. The Python engine, generator and SQL source schemas were not changed or reseeded.
+
+The postdeployment cold representation probe took 47.07 s, with 5.44 s model load and 32.58 s first-token latency. Ollama used 117.57 MiB unloaded and 617.77 MiB loaded (618.02 MiB peak); average inference CPU was 0.488 cores. Minimum available host RAM was 2.29 GiB; concurrent backend/frontend HTTP probes succeeded, slowest 461 ms. The real Spring/React missing-state browser flow completed in 40.2 s and showed the generated Turkish text correctly on desktop and mobile. Subsequent cache reads are immediate.
+
+Remote audit: PostgreSQL, analysis, backend, frontend and Ollama are all healthy, with zero restarts and no OOM kills. All use only `test-reality-poc_backend`; storage is the dedicated PostgreSQL/model volumes. Ollama has no published port or Docker socket and is not privileged. Existing loopback ports 18080/18081 remain the only POC host listeners. No new public listeners were added. Caps remain 384/384/640/64/1024 MiB and 0.25/0.30/0.35/0.05/0.50 CPU; swap remains zero.
+
+During the loaded-model final audit, host available RAM was 2.26 GiB and disk free space 61.21 GiB. Docker contains eight images (11.41 GB), five containers and two volumes (~799 MB), with no build cache. PostgreSQL and analysis container IDs stayed unchanged; analysis was only tagged with the new release image name, without rebuilding or restarting it. Only the backend/frontend application images were replaced.
+
+Preservation passed against the original baseline: directory contents, modes, sizes and mtimes under `/opt/binancebot`, `/opt/liquidation-pilot-v1` and `/opt/liquidation-recorder-v1` have identical digest inventories. Every original image and network ID remains present, including the retained Binance image. Recorder stays disabled/inactive. No shared service, SSH, firewall, swap or host package configuration was changed. This release did not install or run Ollama, download a model, or create an Ollama image/volume on the Mac. A final read-only check found a pre-existing `/usr/local/bin/ollama` symlink to `/Applications/Ollama.app/Contents/Resources/ollama` (binary modified 28 August 2026); it was never invoked or changed. No local Ollama Docker image or Test Reality model volume exists.
+
+A quiet post-validation sample measured 2.28 GiB available RAM, 61.21 GiB free disk and **97.6% CPU idle** across five one-second intervals, with the model still resident. Ollama working memory was 620.6 MiB.

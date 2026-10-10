@@ -1,0 +1,23 @@
+const {test,expect}=require('@playwright/test');
+test('remote model explains an actual missing state without blocking the dashboard',async({page,request})=>{
+  test.skip(process.env.LLM_LIVE!=='1','Remote-only inference; no Ollama on the Mac');
+  test.setTimeout(100000);
+  const findings=await(await request.get('/api/findings')).json();
+  const f=findings.filter(f=>f.finding_type==='MISSING_STATE').at(-1);
+  await page.goto('/');await page.getByRole('button',{name:'Missing states',exact:true}).click();
+  await page.locator('.pattern-button').filter({hasText:f.title}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog.locator('pre').first()).toContainText(String(f.evidence.prod_count));
+  await expect(dialog.getByText('Local on-prem model')).toBeVisible({timeout:90000});
+  await expect(dialog.locator('.ai-explanation p')).toContainText('PROD');
+  await expect(dialog.locator('.ai-explanation p')).toContainText('TEST');
+  await dialog.locator('.ai-explanation').scrollIntoViewIfNeeded();
+  await page.screenshot({path:'../.local/explanation-remote-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await dialog.locator('.ai-explanation').scrollIntoViewIfNeeded();
+  await expect(dialog.getByText('Local on-prem model')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+  await page.screenshot({path:'../.local/explanation-remote-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'Close finding'}).click();
+  await expect(page.getByRole('button',{name:'Run analysis',exact:true})).toBeEnabled();
+});

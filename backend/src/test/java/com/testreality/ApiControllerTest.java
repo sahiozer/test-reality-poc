@@ -17,6 +17,7 @@ class ApiControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean AnalysisService service;
+    @MockitoBean FindingExplanationCoordinator explanations;
 
     @Test void overviewReturnsCalculatedSnapshot() throws Exception {
         when(service.overview()).thenReturn(mapper.readTree("{\"reality_gaps\":3,\"missing_data_states\":7,\"run_id\":\"calculated-run\"}"));
@@ -31,6 +32,7 @@ class ApiControllerTest {
     }
     @Test void findingDetailReturnsEvidence() throws Exception {
         when(service.finding("example")).thenReturn(mapper.readTree("{\"evidence\":{\"prod_count\":120,\"test_count\":0}}"));
+        when(explanations.detail(any())).thenAnswer(invocation -> invocation.getArgument(0));
         mvc.perform(get("/api/findings/example")).andExpect(status().isOk())
             .andExpect(jsonPath("$.evidence.prod_count").value(120));
     }

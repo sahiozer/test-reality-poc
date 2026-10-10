@@ -1,0 +1,43 @@
+# Remote-only opt-in. Never include this file in the Mac/local startup command.
+services:
+  backend:
+    environment:
+      LLM_ENABLED: "true"
+      OLLAMA_URL: http://ollama:11434
+      LLM_MODEL: qwen2.5:0.5b
+      LLM_TIMEOUT_SECONDS: "75"
+  ollama:
+    image: ollama/ollama:0.40.2
+    restart: unless-stopped
+    networks: [backend]
+    volumes: [ollama_models:/root/.ollama]
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_NO_CLOUD: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_MAX_QUEUE: "1"
+      OLLAMA_CONTEXT_LENGTH: "2048"
+      OLLAMA_KEEP_ALIVE: 2m
+      OLLAMA_VULKAN: "0"
+      CUDA_VISIBLE_DEVICES: "-1"
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    cpus: 0.50
+    pids_limit: 128
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+volumes:
+  ollama_models:
+    name: test-reality-poc_ollama_models

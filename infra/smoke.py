@@ -63,7 +63,9 @@ assert all(f["generated_at"] == overview["generated_at"] for f in findings)
 assert int(sql("SELECT COUNT(*) FROM metadata.finding WHERE run_id='" + overview["run_id"] + "'")) == len(findings)
 missing = next(f for f in findings if f["finding_type"] == "MISSING_STATE")
 detail = get("/api/findings/" + urllib.parse.quote(missing["finding_id"], safe=""))
-assert detail == missing
+assert {key:detail[key] for key in missing} == missing
+assert detail['aiExplanationStatus'] in ['GENERATED','FALLBACK','PENDING']
+assert detail['deterministicSummary']
 assert detail["test_value"] == 0 and detail["prod_value"] > 0
 try:
     get("/api/findings/does-not-exist")

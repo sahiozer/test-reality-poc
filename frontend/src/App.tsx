@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, Check, ChevronRight, Clock3, Database, Layers3, Play, RefreshCw, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
-import type { Coverage, Finding, Fingerprint, Overview, Snapshot, State } from './types';
+import type { Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
 
 const number = (v:number) => new Intl.NumberFormat('en-US').format(v);
 const percent = (v:number) => `${(v*100).toFixed(2)}%`;
@@ -32,12 +32,33 @@ export function App() {
   const [tab,setTab]=useState('Overview');
   const [filter,setFilter]=useState('ALL');
   const [query,setQuery]=useState('');
-  const [selected,setSelected]=useState<Finding|null>(null);
+  const [selected,setSelected]=useState<FindingDetail|null>(null);
   const [stateFilter,setStateFilter]=useState('ALL');
   const detailClose = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLElement|null>(null);
 
   useEffect(()=>{ void load(); },[]);
+  useEffect(()=>{
+    if (!selected || selected.aiExplanationStatus!=='PENDING') return;
+    let cancelled=false;
+    const controller=new AbortController();
+    const started=Date.now();
+    let timer:ReturnType<typeof setTimeout>;
+    const poll=async()=>{
+      try {
+        const detail=await api<FindingDetail>(`/findings/${encodeURIComponent(selected.finding_id)}`,{signal:controller.signal});
+        if (cancelled) return;
+        if (detail.aiExplanationStatus!=='PENDING') {setSelected(detail);return;}
+        if (Date.now()-started>80000) {setSelected({...detail,aiExplanation:detail.deterministicSummary,aiExplanationStatus:'FALLBACK'});return;}
+        setSelected(detail);
+        timer=setTimeout(()=>void poll(),1000);
+      } catch {
+        if (!cancelled) setSelected(current=>current?{...current,aiExplanation:current.deterministicSummary,aiExplanationStatus:'FALLBACK'}:null);
+      }
+    };
+    timer=setTimeout(()=>void poll(),0);
+    return ()=>{cancelled=true;controller.abort();clearTimeout(timer);};
+  },[selected?.finding_id,selected?.aiExplanationStatus]);
   useEffect(()=>{
     if (!selected) return;
     detailClose.current?.focus();
@@ -47,7 +68,7 @@ export function App() {
     };
     document.addEventListener('keydown', listener);
     return ()=>document.removeEventListener('keydown',listener);
-  },[selected]);
+  },[selected?.finding_id]);
 
   async function load() {
     setLoading(true); setError('');
@@ -73,8 +94,8 @@ export function App() {
   }
   async function openDetail(f:Finding) {
     trigger.current=document.activeElement as HTMLElement;
-    try {setSelected(await api<Finding>(`/findings/${encodeURIComponent(f.finding_id)}`));}
-    catch(e) {setError((e as Error).message);}
+    // Evidence is already in the persisted snapshot: display it before any LLM request.
+    setSelected({...f,deterministicSummary:f.explanation,aiExplanation:'',aiExplanationStatus:'PENDING'});
   }
   function closeDetail() {setSelected(null);trigger.current?.focus();}
   const visible=findings.filter(f=>(filter==='ALL'||f.finding_type===filter)&&`${f.title} ${f.finding_type}`.toLowerCase().includes(query.toLowerCase()));
@@ -122,6 +143,6 @@ export function App() {
         </>}
       </main>
     </div>
-    {selected&&<div className="modal-backdrop" onClick={closeDetail}><section className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={e=>e.stopPropagation()}><div className="detail-top"><span className="eyebrow">FINDING EVIDENCE</span><button ref={detailClose} className="icon-button" aria-label="Close finding" onClick={closeDetail}><X size={20}/></button></div><span className="assessment gap">{selected.finding_type.replaceAll('_',' ')}</span><h2 id="detail-title">{selected.title}</h2><p>{selected.explanation}</p><div className="detail-values"><div><span>PROD REFERENCE</span><strong>{value(selected,'prod')}</strong></div><div><span>TEST</span><strong>{value(selected,'test')}</strong></div></div><h3>Structured evidence</h3><pre>{JSON.stringify(selected.evidence,null,2)}</pre><h3>Explanation-ready evidence</h3><pre>{JSON.stringify(selected.explanation_ready,null,2)}</pre><div className="detail-meta"><strong>{selected.severity} assessment</strong><span>Calculated {date(selected.generated_at)}</span><code>{selected.finding_id}</code></div></section></div>}
+    {selected&&<div className="modal-backdrop" onClick={closeDetail}><section className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={e=>e.stopPropagation()}><div className="detail-top"><span className="eyebrow">FINDING EVIDENCE</span><button ref={detailClose} className="icon-button" aria-label="Close finding" onClick={closeDetail}><X size={20}/></button></div><span className="assessment gap">{selected.finding_type.replaceAll('_',' ')}</span><h2 id="detail-title">{selected.title}</h2><p>{selected.deterministicSummary}</p><div className="detail-values"><div><span>PROD REFERENCE</span><strong>{value(selected,'prod')}</strong></div><div><span>TEST</span><strong>{value(selected,'test')}</strong></div></div><h3>Structured evidence</h3><pre>{JSON.stringify(selected.evidence,null,2)}</pre><h3>Explanation-ready evidence</h3><pre>{JSON.stringify(selected.explanation_ready,null,2)}</pre><section className="ai-explanation" aria-labelledby="ai-explanation-title"><h3 id="ai-explanation-title">AI Explanation</h3>{selected.aiExplanationStatus==='PENDING'?<p role="status">Yerel açıklama hazırlanıyor…</p>:<><p lang="tr">{selected.aiExplanation||selected.deterministicSummary}</p><small>{selected.aiExplanationStatus==='GENERATED'?'Local on-prem model':'Template fallback'}</small></>}</section><div className="detail-meta"><strong>{selected.severity} assessment</strong><span>Calculated {date(selected.generated_at)}</span><code>{selected.finding_id}</code></div></section></div>}
   </div>;
 }
