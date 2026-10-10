@@ -1,21 +1,24 @@
 const {test,expect}=require('@playwright/test');
 test('remote model explains an actual missing state without blocking the dashboard',async({page,request})=>{
-  test.skip(process.env.LLM_LIVE!=='1','Remote-only inference; no Ollama on the Mac');
+  test.skip(process.env.LLM_LIVE!=='1'&&!process.env.LLM_RECORDED_RESULTS,'Remote-only inference; no Ollama on the Mac');
   test.setTimeout(160000);
   const findings=await(await request.get('/api/findings')).json();
-  const f=findings.filter(f=>f.finding_type==='MISSING_STATE').at(-1);
+  const recorded=process.env.LLM_RECORDED_RESULTS?require(require('path').resolve(process.env.LLM_RECORDED_RESULTS)).results.find(r=>r.name==='long-missing-734'):null;
+  const f=recorded?findings.find(f=>f.finding_type==='MISSING_STATE'&&f.evidence.state_id===recorded.final.evidence.state_id):findings.filter(f=>f.finding_type==='MISSING_STATE').at(-1);
+  if(recorded)await page.route('**/api/findings/*',route=>route.fulfill({json:{...recorded.final,...f}}));
   await page.goto('/');await page.getByRole('button',{name:'Missing states',exact:true}).click();
   await page.locator('.pattern-button').filter({hasText:f.title}).click();
   const dialog=page.getByRole('dialog');
+  await dialog.locator('.technical-evidence summary').click();
   await expect(dialog.locator('pre').first()).toContainText(String(f.evidence.prod_count));
-  await expect(dialog.getByText('Local on-prem model')).toBeVisible({timeout:145000});
+  await expect(dialog.getByText('Local on-prem AI • Generated')).toBeVisible({timeout:145000});
   await expect(dialog.locator('.ai-explanation p')).toContainText('PROD');
   await expect(dialog.locator('.ai-explanation p')).toContainText('TEST');
   await dialog.locator('.ai-explanation').scrollIntoViewIfNeeded();
   await page.screenshot({path:'../.local/explanation-remote-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await dialog.locator('.ai-explanation').scrollIntoViewIfNeeded();
-  await expect(dialog.getByText('Local on-prem model')).toBeVisible();
+  await expect(dialog.getByText('Local on-prem AI • Generated')).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
   await page.screenshot({path:'../.local/explanation-remote-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'Close finding'}).click();

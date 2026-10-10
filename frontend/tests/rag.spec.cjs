@@ -8,8 +8,8 @@ test('health detail shows retrieved demo business rule and preserves original ev
  await page.goto('/');await page.locator('.pattern-button').filter({hasText:f.title}).click();
  const section=page.getByRole('dialog').locator('.context-used');
  await expect(section.getByRole('heading',{name:'Context used',exact:true})).toBeVisible();
- await expect(section.getByText('BR-CUSTOMER-001 — Closed customer / active account',{exact:true})).toBeVisible();
- await expect(section.getByText('Business Rule',{exact:true})).toBeVisible();
+ await expect(section.getByText('Closed customer / active account',{exact:true})).toBeVisible();
+ await expect(section.getByText('BUSINESS RULE',{exact:true})).toBeVisible();
  await page.screenshot({path:'../.local/rag-context-desktop.png',fullPage:true});
 });
 
@@ -22,7 +22,7 @@ test('mobile representation context contains definitions and never attaches a bu
  await page.locator('.pattern-button').filter({hasText:f.title}).click();
  const section=page.getByRole('dialog').locator('.context-used');await section.scrollIntoViewIfNeeded();
  await expect(section.getByText('Representation gap',{exact:true})).toBeVisible();
- await expect(section.getByText('Business Rule',{exact:true})).toHaveCount(0);
+ await expect(section.getByText('BUSINESS RULE',{exact:true})).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
  await page.screenshot({path:'../.local/rag-context-mobile.png',fullPage:true});
 });

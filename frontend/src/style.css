@@ -14,3 +14,34 @@
 .context-used strong,.context-used small {display:block;overflow-wrap:anywhere}
 .context-used small {color:#73738a;margin-top:3px}
 .context-used p {margin:7px 0 0;font-size:13px;line-height:1.6}
+
+/* Presentation polish: retain the existing light surfaces and restrained accent. */
+.metric-hint{line-height:1.6}.metric-value{font-variant-numeric:tabular-nums}
+.topbar-tag{color:#919bad;background:#fcfcfe}.workspace span:not(.poc){color:#919bad}
+.fingerprint-summary{display:grid;grid-template-columns:.8fr .9fr .7fr 1.5fr;gap:20px;padding:18px 21px;margin:0 21px 20px;border:1px solid #eeeaf7;border-radius:8px;background:#faf9fd}
+.fingerprint-summary strong{display:block;font-size:12px;font-weight:600;color:#526079}
+.fingerprint-summary>div:first-child strong{font:700 24px Manrope,sans-serif;color:#7660cf}
+.fingerprint-summary span{display:block;font-size:10px;color:#8994a6;margin-top:6px;line-height:1.5}
+.fingerprints-table td:first-child strong{font-size:11px;font-weight:600;color:#43506a}.fingerprints-table .block{font-size:10px;color:#8590a3}
+.fingerprints-table td:nth-child(2),.fingerprints-table td:nth-child(3){font-size:12px;font-weight:600;color:#4a5870;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fingerprints-table th:nth-child(2),.fingerprints-table th:nth-child(3){color:#69768c;font-weight:600}
+.fingerprints-table .method-cell{font-size:10px;line-height:1.7;color:#8b96a7}
+.detail-panel{width:640px}.detail-panel h2{line-height:1.4;margin:16px 0 22px}
+.detail-values{margin:0 0 24px}.detail-values span{text-transform:uppercase}
+.evidence-summary h3{margin:0 0 9px}.evidence-summary p{font-size:12px;line-height:1.8;color:#67768b;overflow-wrap:anywhere}
+.explanation-flow{display:flex;align-items:center;gap:9px;margin:18px 0 22px;font-size:10px;color:#939cad}
+.ai-explanation{padding:20px;background:#faf9fe;border-color:#e9e4f6;border-radius:9px;margin:0 0 22px}
+.detail-section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+.detail-section-heading h3{margin:0}.detail-section-heading small{font-size:9px;color:#8993a5;line-height:1.6}
+.ai-explanation p{font-size:13px;line-height:1.8;color:#526079}.ai-status[data-status='GENERATED']{color:#7966b6}
+.context-used{padding:20px;border-color:#e9edf3;background:#fff;margin:0 0 22px}
+.context-source{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.context-source strong{font-size:11px;font-weight:600;color:#596780}
+.source-badge{font-size:8px;font-weight:600;letter-spacing:.5px;padding:4px 6px;border-radius:4px;background:#f2f4f8;color:#8290a3;white-space:nowrap}.source-badge.rule{background:#f0ecfa;color:#8a74c1}
+.context-used li+li{padding-top:15px;margin-top:15px;border-top:1px solid #eef0f5}.context-used .context-title{font-size:10px;color:#919bae;margin-top:6px}
+.context-used p{font-size:12px;line-height:1.75;color:#728098}
+.technical-evidence{border:1px solid #e9edf3;border-radius:9px}.technical-evidence summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 18px;cursor:pointer;list-style:none}
+.technical-evidence summary::-webkit-details-marker{display:none}.technical-evidence summary strong{display:block;font-size:12px;font-weight:600;color:#627188}.technical-evidence summary small{display:block;margin-top:6px;font-size:10px;color:#99a3b3;line-height:1.6}
+.technical-evidence summary>svg{flex-shrink:0;color:#a0aabc}.technical-evidence[open] summary>svg{transform:rotate(90deg)}
+.technical-evidence summary:focus-visible{outline:3px solid #afa2fb;outline-offset:3px;border-radius:9px}
+.technical-evidence-body{border-top:1px solid #edf0f5;padding:0 18px 18px}.technical-evidence-body>p{font-size:11px;line-height:1.7;color:#8793a6;overflow-wrap:anywhere}
+@media(max-width:720px){.fingerprint-summary{grid-template-columns:1fr 1fr;margin:0 15px 16px;padding:16px;gap:18px}.fingerprint-summary>div:last-child{grid-column:1/-1}.ai-explanation,.context-used{padding:17px}.detail-values{padding:18px;gap:15px}.detail-section-heading{align-items:flex-start}.detail-panel h2{font-size:21px}}

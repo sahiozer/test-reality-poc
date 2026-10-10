@@ -13,7 +13,8 @@ test('real dashboard renders persisted results and opens missing-state evidence'
   await page.getByRole('button',{name:'Missing states',exact:true}).click();
   await page.locator('.pattern-button').first().click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('heading',{name:'Structured evidence',exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog').locator('.technical-evidence')).not.toHaveAttribute('open','');
+  await page.getByRole('dialog').locator('.technical-evidence summary').click();
   await expect(page.getByRole('dialog').locator('pre').first()).toContainText('"test_count": 0');
   await page.getByRole('button',{name:'Close finding'}).click();
   await page.getByRole('button',{name:'State coverage',exact:true}).click();
@@ -58,6 +59,7 @@ test('executive flow runs analysis, exposes all evidence, and survives refresh',
     const finding=findings.find(f=>f.finding_type===type);
     expect(finding).toBeTruthy();
     await page.locator('.pattern-button').filter({hasText:finding.title}).click();
+    await page.getByRole('dialog').locator('.technical-evidence summary').click();
     await expect(page.getByRole('dialog').locator('pre').first()).toContainText(finding.evidence.calculation_method);
     await page.getByRole('button',{name:'Close finding'}).click();
   }
@@ -67,6 +69,7 @@ test('executive flow runs analysis, exposes all evidence, and survives refresh',
   await page.getByRole('combobox',{name:'Filter states'}).selectOption('MISSING');
   await expect(page.locator('tbody tr')).toHaveCount(c.missing_in_test);
   await page.locator('.state-link').first().click();
+  await page.getByRole('dialog').locator('.technical-evidence summary').click();
   await expect(page.getByRole('dialog').locator('pre').first()).toContainText('"test_count": 0');
   await page.getByRole('button',{name:'Close finding'}).click();
   await page.reload();

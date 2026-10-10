@@ -14,9 +14,10 @@ for(const mode of ['GENERATED','FALLBACK']) {
     await page.getByRole('button',{name:'Missing states',exact:true}).click();
     await page.locator('.pattern-button').filter({hasText:f.title}).click();
     const dialog=page.getByRole('dialog');
+    await dialog.locator('.technical-evidence summary').click();
     await expect(dialog.locator('pre').first()).toContainText('"test_count": 0');
     await expect(dialog.getByText('Local on-prem AI explanation is being generated…')).toBeVisible();
-    await expect(dialog.getByText(mode==='GENERATED'?'Local on-prem model':'Template fallback')).toBeVisible({timeout:10000});
+    await expect(dialog.getByText(mode==='GENERATED'?'Local on-prem AI • Generated':'Template fallback')).toBeVisible({timeout:10000});
     await expect(dialog.getByText('PROD ve TEST değerleri kanıttan alınmıştır.')).toBeVisible();
     await expect(dialog.locator('pre').first()).toContainText(String(f.evidence.prod_count));
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
@@ -29,6 +30,7 @@ test('detail explanation transport failure falls back while evidence stays usabl
   await page.route('**/api/findings/*',route=>route.abort('failed'));
   await page.goto('/');await page.locator('.pattern-button').filter({hasText:f.title}).click();
   await expect(page.getByRole('dialog').getByText('Template fallback')).toBeVisible();
+  await page.getByRole('dialog').locator('.technical-evidence summary').click();
   await expect(page.getByRole('dialog').locator('pre').first()).toContainText(f.evidence.calculation_method);
   await page.getByRole('button',{name:'Close finding'}).click();
   await expect(page.getByRole('button',{name:'Run analysis',exact:true})).toBeEnabled();
