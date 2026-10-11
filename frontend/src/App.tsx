@@ -21,8 +21,23 @@ function value(f:Finding, side:'prod'|'test') {
   return new Date(v).toLocaleDateString();
 }
 
+type WorkspaceDomain = "CUSTOMER_LENDING" | "CARDS";
+const domainStorageKey = "test-reality-domain";
+function validDomain(value: string | null): WorkspaceDomain {
+  return value === "CARDS" ? "CARDS" : "CUSTOMER_LENDING";
+}
+function restoredDomain(): WorkspaceDomain {
+  try { return validDomain(localStorage.getItem(domainStorageKey)); }
+  catch { return "CUSTOMER_LENDING"; }
+}
+
 export function App() {
-  const [domain,setDomain]=useState(()=>localStorage.getItem("test-reality-domain")==="CARDS"?"CARDS":"CUSTOMER_LENDING");
+  const [domain,setDomain]=useState<WorkspaceDomain>(restoredDomain);
+  function changeDomain(value: string) {
+    const next = validDomain(value);
+    try { localStorage.setItem(domainStorageKey,next); } catch { /* Keep switching usable when storage is unavailable. */ }
+    setDomain(next);
+  }
   const [domains,setDomains]=useState<DomainInfo[]>([]);
   const workspace=domains.find(d=>d.id===domain);
   async function domainApi<T>(path:string,init?:RequestInit) {return api<T>(path,init,domain);}
@@ -43,7 +58,6 @@ export function App() {
   const trigger = useRef<HTMLElement|null>(null);
 
   useEffect(()=>{
-    localStorage.setItem("test-reality-domain",domain);
     setSelected(null);setOverview(null);setFindings([]);setCoverage(null);setFingerprints([]);setFilter("ALL");setQuery("");setNotice("");
     const controller=new AbortController();void load(controller.signal);return ()=>controller.abort();
   },[domain]);
@@ -127,7 +141,7 @@ export function App() {
   return <div className="shell">
     <aside className="sidebar">
       <a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('Overview');}}><span className="brand-icon"><Layers3 size={22}/></span><span>test reality<span className="brand-dot">.</span></span></a>
-      <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><select aria-label="Banking workspace domain" value={domain} disabled={running} onChange={e=>setDomain(e.target.value)}>{domains.map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></div><span className="poc">POC</span></div>
+      <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><select aria-label="Banking workspace domain" value={domain} disabled={running} onChange={e=>changeDomain(e.target.value)}>{domains.map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></div><span className="poc">POC</span></div>
       <div className="nav-label">WORKSPACE</div>
       <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database]].map(([name,Icon])=>{
         const Component=Icon as typeof Activity;
