@@ -9,6 +9,7 @@ docker compose --env-file infra/.env -f infra/compose.yml build
 docker compose --env-file infra/.env -f infra/compose.yml up -d --wait postgres analysis
 docker compose --env-file infra/.env -f infra/compose.yml run --rm analysis sh -c 'TEST_DATABASE_URL="$DATABASE_URL" python -m pytest -q -p no:cacheprovider tests'
 docker compose --env-file infra/.env -f infra/compose.yml run --rm analysis python demo_data/generate.py
+docker compose --env-file infra/.env -f infra/compose.yml run --rm analysis python demo_data/generate_cards.py
 docker compose --env-file infra/.env -f infra/compose.yml up -d --wait
 python3 - <<'PY'
 import json,urllib.request

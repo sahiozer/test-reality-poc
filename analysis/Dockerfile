@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY analysis/app ./app
 COPY analysis/tests ./tests
 COPY infra/init.sql ./init.sql
+COPY infra/cards.sql ./cards.sql
 COPY demo-data ./demo_data
 USER 10001:10001
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

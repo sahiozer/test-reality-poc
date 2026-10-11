@@ -19,9 +19,15 @@ public class DomainContextRetriever {
     private final Map<String,Integer> documentFrequency = new HashMap<>();
     private double averageLength;
     private String version = "unavailable";
+    private DomainContextRetriever cards;
+    @org.springframework.beans.factory.annotation.Autowired
     public DomainContextRetriever(ObjectMapper mapper) {
+        this(mapper,"/domain-knowledge/knowledge.json");
+        cards=new DomainContextRetriever(mapper,"/domain-knowledge/cards.json");
+    }
+    private DomainContextRetriever(ObjectMapper mapper,String resource) {
         this.mapper = mapper;
-        try (var stream = getClass().getResourceAsStream("/domain-knowledge/knowledge.json")) {
+        try (var stream = getClass().getResourceAsStream(resource)) {
             if (stream == null) return;
             byte[] bytes = stream.readAllBytes();
             var corpus = mapper.readTree(bytes);
@@ -53,7 +59,10 @@ public class DomainContextRetriever {
     }
     public String version() { return version; }
     public int chunkCount() { return entries.size(); }
+    public String cardsVersion() { return cards.version(); }
     public ArrayNode retrieve(JsonNode finding) {
+        if (cards!=null && "CARDS".equals(finding.path("domain").asText())) return cards.retrieve(finding);
+        boolean isCards="CARDS".equals(finding.path("domain").asText());
         String type = finding.path("finding_type").asText();
         var evidence = finding.path("evidence");
         String query = switch (type) {
@@ -65,7 +74,14 @@ public class DomainContextRetriever {
             case "HEALTHY_STATE" -> "PROD reference fingerprint";
             default -> "";
         };
-        if (evidence.path("features").isObject()) {
+        if (isCards) query = switch(type) {
+            case "DATA_HEALTH_ISSUE" -> "closed_cards_with_available_limit".equals(evidence.path("metric").asText()) ? "BR-CARD-001 CLOSED card status available limit CARD_LIMIT CARD_STATUS business rule" : "";
+            case "REPRESENTATION_GAP" -> "REPRESENTATION_GAP PROD reference representation gap multi_active_card_rate";
+            case "MISSING_STATE" -> "MISSING_STATE coverage PHYSICAL_CARD VIRTUAL_CARD physical_virtual missing state";
+            case "FRESHNESS_GAP" -> "FRESHNESS_GAP freshness business timestamps";
+            default -> "";
+        };
+        if (!isCards && evidence.path("features").isObject()) {
             for (var field : List.of("customer_type","account_count_bucket","has_fx_account","has_active_loan","has_active_card","has_blocked_account")) {
                 if (evidence.get("features").has(field)) query += " " + field;
             }

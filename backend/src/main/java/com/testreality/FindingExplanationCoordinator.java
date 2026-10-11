@@ -41,10 +41,11 @@ public class FindingExplanationCoordinator {
             long retrievalStart=System.nanoTime();
             try {contexts=retrieval.retrieve(finding);} catch(Exception unavailable) { /* evidence-only */ }
             double retrievalMs=(System.nanoTime()-retrievalStart)/1_000_000.0;
-            ExplanationInput input=original.withContext(contexts,retrieval.version());
+            String knowledgeVersion="CARDS".equals(finding.path("domain").asText())?retrieval.cardsVersion():retrieval.version();
+            ExplanationInput input=original.withContext(contexts,knowledgeVersion);
             String summary=template.explain(input);
             String evidenceHash=hash(finding.toString());
-            String contextHash=hash(retrieval.version()+"|"+contexts);
+            String contextHash=hash(knowledgeVersion+"|"+contexts);
             String model=enabled ? String.valueOf(ollama.modelName()) : "disabled";
             // Context, model, prompt and evidence changes each invalidate the durable result.
             String key=hash(finding.path("finding_id").asText()+"|"+evidenceHash+"|"+contextHash+"|"+model+"|"+OllamaFindingExplanationService.SYSTEM+"|rag-async-1");

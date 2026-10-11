@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Literal
 import psycopg
 
 from app.engine import analyze
@@ -14,6 +15,7 @@ log = logging.getLogger(__name__)
 
 class AnalysisRequest(BaseModel):
     run_id: UUID
+    domain: Literal["CUSTOMER_LENDING", "CARDS"] = "CUSTOMER_LENDING"
 
 
 @app.get("/health")
@@ -30,7 +32,7 @@ def health():
 def run(request: AnalysisRequest):
     try:
         with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=5) as conn:
-            return analyze(conn, str(request.run_id))
+            return analyze(conn, str(request.run_id), domain=request.domain)
     except ValueError as error:
         raise HTTPException(409, str(error))
     except psycopg.Error:

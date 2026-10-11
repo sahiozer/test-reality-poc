@@ -50,4 +50,11 @@ class ApiControllerTest {
         mvc.perform(post("/api/analysis/run")).andExpect(status().isOk()).andExpect(jsonPath("$.run_id").value("new-run"));
         verify(service).run();
     }
+    @Test void cardsRoutesAreExplicitAndInvalidDomainIsRejected() throws Exception {
+        when(service.overview(Domain.CARDS)).thenReturn(mapper.readTree("{\"environments\":[\"prod_cards\",\"test_cards\"]}"));
+        mvc.perform(get("/api/overview?domain=CARDS")).andExpect(status().isOk()).andExpect(jsonPath("$.environments[0]").value("prod_cards"));
+        verify(service).overview(Domain.CARDS);verify(service,never()).overview();
+        mvc.perform(get("/api/overview?domain=UNKNOWN")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/domains")).andExpect(status().isOk()).andExpect(jsonPath("$[1].id").value("CARDS"));
+    }
 }

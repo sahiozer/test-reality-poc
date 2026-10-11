@@ -67,7 +67,7 @@ public class OllamaFindingExplanationService implements FindingExplanationServic
     public JsonNode modelInput(ExplanationInput input) {
         // Only the fields needed for phrasing. Full original evidence stays in the API contract.
         var compact=mapper.createObjectNode();
-        for (String key : new String[]{"findingType","state","prod","test","prodValue","testValue","ageDifferenceDaysDisplay","ruleSource","ruleText","assessment","subject","prodDisplay","testDisplay","retrievedContext","contextReference","retrievedRuleSource","retrievedRuleId","knowledgeVersion"}) {
+        for (String key : new String[]{"findingType","domain","cardStatus","availableLimitPredicate","violationCount","state","prod","test","prodValue","testValue","ageDifferenceDaysDisplay","ruleSource","ruleText","assessment","subject","prodDisplay","testDisplay","retrievedContext","contextReference","retrievedRuleSource","retrievedRuleId","knowledgeVersion"}) {
             if (input.evidence().has(key)) compact.set(key,input.evidence().get(key));
         }
         return compact;

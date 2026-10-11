@@ -1,0 +1,138 @@
+{
+  "version": "cards-demo-1",
+  "chunks": [
+    {
+      "id": "ACTIVE_ACCOUNT_COUNT",
+      "title": "Active account count",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Aktif hesap sayısı yalnızca ACTIVE statüsündeki hesapları sayar; toplam hesap sayısı CLOSED hesapları da içerir.",
+      "keywords": "active_account_count account_count_bucket active accounts 0 1 2+",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE",
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "DATA_FRESHNESS",
+      "title": "Data freshness",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Veri güncelliği müşteri oluşturma ve hesap açılış tarihlerinin en son değerine göre ölçülür; analiz çalışma zamanı değildir.",
+      "keywords": "FRESHNESS_GAP freshness business timestamps prod_latest test_latest age_difference_days güncellik",
+      "findingTypes": [
+        "FRESHNESS_GAP"
+      ]
+    },
+    {
+      "id": "REPRESENTATION_GAP",
+      "title": "Representation gap",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Representation gap bir veri durumunun TEST içinde PROD referansına göre daha az temsil edilmesidir; bu fark tek başına onarım kararı değildir.",
+      "keywords": "REPRESENTATION_GAP representation gap multi_account_rate reference definition",
+      "findingTypes": [
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "UNDERREPRESENTED_STATE",
+      "title": "Underrepresented state",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Bu POC için underrepresented state, TEST oranının PROD oranının yarısından düşük olduğu anlamına gelir; eşik genel bir kurum politikası değildir.",
+      "keywords": "REPRESENTATION_GAP underrepresented state prod_prevalence test_prevalence",
+      "findingTypes": [
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "MISSING_STATE",
+      "title": "Missing state",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "Missing state yeterli PROD desteğine sahip bir altı özellikli veri durumunun TEST içinde hiç bulunmamasıdır; nedeni bu kanıttan belirlenemez.",
+      "keywords": "MISSING_STATE missing state zero test_count coverage definition",
+      "findingTypes": [
+        "MISSING_STATE"
+      ]
+    },
+    {
+      "id": "TEST_ENVIRONMENT",
+      "title": "TEST environment",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "TEST kontrollü test ortamıdır; PROD ile aynı satır sayısına sahip olması aynı veri durumlarını içerdiği anlamına gelmez.",
+      "keywords": "TEST environment test_env test",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "FRESHNESS_GAP"
+      ]
+    },
+    {
+      "id": "PROD_REFERENCE",
+      "title": "PROD reference / fingerprint",
+      "sourceType": "DOMAIN_DEFINITION",
+      "content": "PROD snapshot bu demodaki üretim referansıdır; fingerprint hesaplanan veri özelliklerini gösterir, ham müşteri kayıtlarını veya gerçek banka verisini içermez.",
+      "keywords": "PROD reference fingerprint prod_snapshot reference definition",
+      "findingTypes": [
+        "REPRESENTATION_GAP",
+        "MISSING_STATE",
+        "FRESHNESS_GAP",
+        "HEALTHY_STATE"
+      ]
+    },
+    {
+      "id": "BR-CARD-001",
+      "title": "BR-CARD-001",
+      "sourceType": "BUSINESS_RULE",
+      "content": "Kapalı statüdeki kartın kullanılabilir limiti sıfır olmalıdır.",
+      "keywords": "BR-CARD-001 CLOSED card available limit business rule closed_cards_with_available_limit",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE"
+      ],
+      "appliesToMetric": "closed_cards_with_available_limit"
+    },
+    {
+      "id": "CARD_STATUS",
+      "title": "CARD_STATUS",
+      "sourceType": "GLOSSARY",
+      "content": "ACTIVE aktif kartı, CLOSED kapalı kartı, BLOCKED blokeli kartı belirtir.",
+      "keywords": "CARD_STATUS CLOSED card status",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE",
+        "MISSING_STATE"
+      ]
+    },
+    {
+      "id": "PHYSICAL_CARD",
+      "title": "PHYSICAL_CARD",
+      "sourceType": "GLOSSARY",
+      "content": "PHYSICAL fiziksel kartı belirtir; aynı müşteri fiziksel ve sanal kart taşıyabilir.",
+      "keywords": "PHYSICAL_CARD physical_virtual physical card",
+      "findingTypes": [
+        "MISSING_STATE",
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "VIRTUAL_CARD",
+      "title": "VIRTUAL_CARD",
+      "sourceType": "GLOSSARY",
+      "content": "VIRTUAL sanal kartı belirtir; fiziksel ve sanal kart birleşimi ayrı bir veri durumudur.",
+      "keywords": "VIRTUAL_CARD physical_virtual virtual card",
+      "findingTypes": [
+        "MISSING_STATE",
+        "REPRESENTATION_GAP"
+      ]
+    },
+    {
+      "id": "CARD_LIMIT",
+      "title": "CARD_LIMIT",
+      "sourceType": "GLOSSARY",
+      "content": "total_limit toplam limittir; available_limit kullanılabilir limittir. Pozitif kullanılabilir limit sıfırdan büyüktür.",
+      "keywords": "CARD_LIMIT available limit positive total_limit",
+      "findingTypes": [
+        "DATA_HEALTH_ISSUE",
+        "MISSING_STATE"
+      ]
+    }
+  ]
+}

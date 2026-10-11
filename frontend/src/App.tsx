@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, Check, ChevronRight, Clock3, Database, Layers3, Play, RefreshCw, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
-import type { Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
+import type { DomainInfo, Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
 
 const number = (v:number) => new Intl.NumberFormat('en-US').format(v);
 const percent = (v:number) => `${(v*100).toFixed(2)}%`;
 const date = (v:string) => new Date(v).toLocaleString();
-async function api<T>(path:string, init?:RequestInit):Promise<T> {
-  const response = await fetch(`/api${path}`, init);
+async function api<T>(path:string, init?:RequestInit, domain="CUSTOMER_LENDING"):Promise<T> {
+  const response = await fetch(`/api${path}${domain==='CUSTOMER_LENDING'?'':'?domain='+encodeURIComponent(domain)}`, init);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw Object.assign(new Error(data.message || `Request failed (${response.status})`), {status:response.status});
@@ -14,7 +14,7 @@ async function api<T>(path:string, init?:RequestInit):Promise<T> {
   return response.json();
 }
 const findingLabel = (type:string) => ({REPRESENTATION_GAP:'Reality gap', MISSING_STATE:'Missing state', DATA_HEALTH_ISSUE:'Data health issue', FRESHNESS_GAP:'Freshness gap'}[type] || type.replaceAll('_',' ').toLowerCase());
-const stateLabel = (s:State) => `${s.features.customer_type} · ${s.features.account_count_bucket} active accounts · ${s.features.has_fx_account?'FX':'no FX'} · ${s.features.has_active_loan?'active loan':'no active loan'} · ${s.features.has_active_card?'active card':'no active card'} · ${s.features.has_blocked_account?'blocked':'unblocked'}`;
+const stateLabel = (s:State) => s.label || `${s.features.customer_type} · ${s.features.account_count_bucket} active accounts · ${s.features.has_fx_account?'FX':'no FX'} · ${s.features.has_active_loan?'active loan':'no active loan'} · ${s.features.has_active_card?'active card':'no active card'} · ${s.features.has_blocked_account?'blocked':'unblocked'}`;
 function value(f:Finding, side:'prod'|'test') {
   const v = side==='prod'?f.prod_value:f.test_value;
   if (typeof v==='number') return f.evidence.unit==='fraction'?percent(v):number(v);
@@ -22,6 +22,10 @@ function value(f:Finding, side:'prod'|'test') {
 }
 
 export function App() {
+  const [domain,setDomain]=useState(()=>localStorage.getItem("test-reality-domain")==="CARDS"?"CARDS":"CUSTOMER_LENDING");
+  const [domains,setDomains]=useState<DomainInfo[]>([]);
+  const workspace=domains.find(d=>d.id===domain);
+  async function domainApi<T>(path:string,init?:RequestInit) {return api<T>(path,init,domain);}
   const [overview,setOverview]=useState<Overview|null>(null);
   const [findings,setFindings]=useState<Finding[]>([]);
   const [coverage,setCoverage]=useState<Coverage|null>(null);
@@ -38,7 +42,11 @@ export function App() {
   const detailClose = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLElement|null>(null);
 
-  useEffect(()=>{ void load(); },[]);
+  useEffect(()=>{
+    localStorage.setItem("test-reality-domain",domain);
+    setSelected(null);setOverview(null);setFindings([]);setCoverage(null);setFingerprints([]);setFilter("ALL");setQuery("");setNotice("");
+    const controller=new AbortController();void load(controller.signal);return ()=>controller.abort();
+  },[domain]);
   useEffect(()=>{
     if (!selected || selected.aiExplanationStatus!=='PENDING') return;
     let cancelled=false;
@@ -46,7 +54,7 @@ export function App() {
     let timer:ReturnType<typeof setTimeout>;
     const poll=async()=>{
       try {
-        const detail=await api<FindingDetail>(`/findings/${encodeURIComponent(selected.finding_id)}`,{signal:controller.signal});
+        const detail=await domainApi<FindingDetail>(`/findings/${encodeURIComponent(selected.finding_id)}`,{signal:controller.signal});
         if (cancelled) return;
         if (detail.aiExplanationStatus!=='PENDING') {setSelected(detail);return;}
         setSelected(detail);
@@ -75,22 +83,25 @@ export function App() {
     return ()=>document.removeEventListener('keydown',listener);
   },[selected?.finding_id]);
 
-  async function load() {
+  async function load(signal:AbortSignal) {
     setLoading(true); setError('');
     try {
-      const o=await api<Overview>('/overview');
-      const [f,c,p]=await Promise.all([api<Finding[]>('/findings'),api<Coverage>('/states/coverage'),api<Fingerprint[]>('/fingerprints')]);
+      const descriptors=await api<DomainInfo[]>('/domains',{signal});if(signal.aborted)return;setDomains(descriptors);
+      const o=await domainApi<Overview>('/overview',{signal});
+      const [f,c,p]=await Promise.all([domainApi<Finding[]>('/findings',{signal}),domainApi<Coverage>('/states/coverage',{signal}),domainApi<Fingerprint[]>('/fingerprints',{signal})]);
+      if(signal.aborted)return;
       setOverview(o);setFindings(f);setCoverage(c);setFingerprints(p);
     } catch(e) {
+      if(signal.aborted)return;
       const err=e as Error & {status?:number};
       if (err.status===409) setNotice('Your environments are ready. Run the first analysis to calculate their differences.');
       else setError(err.message);
-    } finally {setLoading(false);}
+    } finally {if(!signal.aborted)setLoading(false);}
   }
   async function run() {
     setRunning(true);setError('');setNotice('');
     try {
-      const r=await api<Snapshot>('/analysis/run',{method:'POST'});
+      const r=await domainApi<Snapshot>('/analysis/run',{method:'POST'});
       setOverview({...r.overview,dataset:r.dataset,run_id:r.run_id,generated_at:r.generated_at,latest_attempt:{status:'SUCCEEDED',error_message:null}});
       setFindings(r.findings);setCoverage(r.coverage);setFingerprints(r.fingerprints);
       setNotice('Analysis complete. All results below were calculated from the current database.');
@@ -104,14 +115,19 @@ export function App() {
   }
   function closeDetail() {setSelected(null);trigger.current?.focus();}
   const visible=findings.filter(f=>(filter==='ALL'||f.finding_type===filter)&&`${f.title} ${f.finding_type}`.toLowerCase().includes(query.toLowerCase()));
-  const prod=overview?.business_metrics.prod_snapshot;
-  const test=overview?.business_metrics.test_env;
+  const prodEnv=overview?.environments[0] || workspace?.environments[0] || "";
+  const testEnv=overview?.environments[1] || workspace?.environments[1] || "";
+  const prod=overview?.business_metrics[prodEnv];
+  const test=overview?.business_metrics[testEnv];
+  const entityLabel=workspace?.entityLabel || "";
+  const countKey=workspace?.entityCountKey || "";
+  const distributionTotalKey=workspace?.distributionTotalKey || "";
   const shownStates=coverage?.states.filter(s=>stateFilter==='ALL'||s.assessment===stateFilter) || [];
 
   return <div className="shell">
     <aside className="sidebar">
       <a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('Overview');}}><span className="brand-icon"><Layers3 size={22}/></span><span>test reality<span className="brand-dot">.</span></span></a>
-      <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><span>Synthetic demonstration</span></div><span className="poc">POC</span></div>
+      <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><select aria-label="Banking workspace domain" value={domain} disabled={running} onChange={e=>setDomain(e.target.value)}>{domains.map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></div><span className="poc">POC</span></div>
       <div className="nav-label">WORKSPACE</div>
       <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database]].map(([name,Icon])=>{
         const Component=Icon as typeof Activity;
@@ -127,7 +143,7 @@ export function App() {
         {error&&<div className="alert error" role="alert"><ShieldAlert size={18}/>{error}</div>}
         {notice&&<div className="alert notice" role="status"><Check size={17}/>{notice}</div>}
         {overview?.latest_attempt?.status==='FAILED'&&<div className="alert error" role="alert">Latest run failed. Showing the last successful snapshot: {overview.latest_attempt.error_message}</div>}
-        <div className="environment-strip"><div className="environment-name"><Database size={19}/><div><span className="micro">REFERENCE ENVIRONMENT</span><strong>prod_snapshot <span className="env-badge prod">PROD</span></strong></div></div><ArrowRight size={19} className="muted"/><div className="environment-name"><Database size={19}/><div><span className="micro">COMPARED ENVIRONMENT</span><strong>test_env <span className="env-badge test">TEST</span></strong></div></div><div className="environment-meta">{prod&&test?<><strong>{number(prod.customer_count)} / {number(test.customer_count)}</strong><span>customers · PROD / TEST</span></>:<span>PostgreSQL · separate schemas</span>}</div><span className="snapshot-status"><span className="tiny-dot"/>{overview?'Analysis saved':'Awaiting analysis'}</span></div>
+        <div className="environment-strip"><div className="environment-name"><Database size={19}/><div><span className="micro">REFERENCE ENVIRONMENT</span><strong>{prodEnv} <span className="env-badge prod">PROD</span></strong></div></div><ArrowRight size={19} className="muted"/><div className="environment-name"><Database size={19}/><div><span className="micro">COMPARED ENVIRONMENT</span><strong>{testEnv} <span className="env-badge test">TEST</span></strong></div></div><div className="environment-meta">{prod&&test?<><strong>{number(prod[countKey])} / {number(test[countKey])}</strong><span>{entityLabel} · PROD / TEST</span></>:<span>PostgreSQL · separate schemas</span>}</div><span className="snapshot-status"><span className="tiny-dot"/>{overview?'Analysis saved':'Awaiting analysis'}</span></div>
         {loading&&<div className="empty"><RefreshCw className="spin"/> Loading saved analysis…</div>}
         {!loading&&!overview&&<div className="empty"><Database size={32}/><h2>Start with the data.</h2><p>Run analysis to calculate fingerprints, significant business states, and evidence-based findings.</p></div>}
         {overview&&<>
@@ -139,11 +155,11 @@ export function App() {
               <div className="table-tools"><div className="filter-tabs">{[['ALL','All findings'],['REPRESENTATION_GAP','Reality gaps'],['MISSING_STATE','Missing states'],['DATA_HEALTH_ISSUE','Health']].map(([v,l])=><button key={v} className={filter===v?'selected':''} onClick={()=>setFilter(v)}>{l}</button>)}</div><label className="search"><Search size={15}/><input aria-label="Search findings" placeholder="Find a pattern" value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
               <div className="table-scroll"><table className="findings-table"><thead><tr><th>Data pattern</th><th>PROD reference</th><th>TEST</th><th>Assessment</th><th><span className="sr-only">Detail</span></th></tr></thead><tbody>{visible.map(f=><tr key={f.finding_id}><td><button className="pattern-button" onClick={()=>void openDetail(f)}><span className={`pattern-symbol ${f.finding_type==='DATA_HEALTH_ISSUE'?'red':f.finding_type==='MISSING_STATE'?'orange':'purple'}`}><Activity size={14}/></span><span><strong>{f.title}</strong><small>{findingLabel(f.finding_type)}</small></span></button></td><td>{value(f,'prod')}</td><td className={f.finding_type==='MISSING_STATE'?'zero-value':''}>{value(f,'test')}</td><td><span className={`assessment ${f.finding_type==='MISSING_STATE'?'missing':f.finding_type==='DATA_HEALTH_ISSUE'?'health':'gap'}`}>{f.finding_type==='MISSING_STATE'?'Missing':f.finding_type==='DATA_HEALTH_ISSUE'?'Inconsistent':f.finding_type==='FRESHNESS_GAP'?'Stale':'Underrepresented'}</span></td><td><button className="icon-button" aria-label={`Open ${f.title}`} onClick={()=>void openDetail(f)}><ArrowUpRight size={16}/></button></td></tr>)}</tbody></table>{visible.length===0&&<div className="empty small">No findings match this filter.</div>}</div><div className="panel-foot">{visible.length} findings · click a pattern to inspect its evidence</div>
             </section>
-            {tab==='Overview'&&coverage&&<section className="panel coverage-summary"><div className="panel-heading"><div><h2>Data-state coverage</h2><p>Business combinations, not just rows.</p></div><Layers3 size={19} className="muted"/></div><div className="coverage-ring" style={{'--coverage':`${coverage.total_significant_prod_states?coverage.represented_in_test/coverage.total_significant_prod_states*100:0}%`} as React.CSSProperties}><div><strong>{coverage.total_significant_prod_states?Math.round(coverage.represented_in_test/coverage.total_significant_prod_states*100):0}<span>%</span></strong><small>represented in TEST</small></div></div><div className="coverage-total"><strong>{coverage.represented_in_test}<span> / {coverage.total_significant_prod_states}</span></strong><p>significant PROD states represented</p></div><div className="coverage-stat"><span><i className="legend-dot green"/>Represented</span><strong>{coverage.represented_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot orange"/>Missing</span><strong>{coverage.missing_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot purple"/>Underrepresented</span><strong>{coverage.underrepresented_in_test}</strong></div><p className="coverage-note">Underrepresented states are included in represented. Minimum {coverage.thresholds.minimum_support} customers and {percent(coverage.thresholds.minimum_prevalence)} PROD prevalence.</p><button className="text-link" onClick={()=>setTab('State coverage')}>Explore state coverage <ArrowRight size={15}/></button></section>}
+            {tab==='Overview'&&coverage&&<section className="panel coverage-summary"><div className="panel-heading"><div><h2>Data-state coverage</h2><p>Business combinations, not just rows.</p></div><Layers3 size={19} className="muted"/></div><div className="coverage-ring" style={{'--coverage':`${coverage.total_significant_prod_states?coverage.represented_in_test/coverage.total_significant_prod_states*100:0}%`} as React.CSSProperties}><div><strong>{coverage.total_significant_prod_states?Math.round(coverage.represented_in_test/coverage.total_significant_prod_states*100):0}<span>%</span></strong><small>represented in TEST</small></div></div><div className="coverage-total"><strong>{coverage.represented_in_test}<span> / {coverage.total_significant_prod_states}</span></strong><p>significant PROD states represented</p></div><div className="coverage-stat"><span><i className="legend-dot green"/>Represented</span><strong>{coverage.represented_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot orange"/>Missing</span><strong>{coverage.missing_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot purple"/>Underrepresented</span><strong>{coverage.underrepresented_in_test}</strong></div><p className="coverage-note">Underrepresented states are included in represented. Minimum {coverage.thresholds.minimum_support} {entityLabel} and {percent(coverage.thresholds.minimum_prevalence)} PROD prevalence.</p><button className="text-link" onClick={()=>setTab('State coverage')}>Explore state coverage <ArrowRight size={15}/></button></section>}
           </div>}
-          {tab==='Overview'&&prod&&test&&<section className="panel comparison-panel"><div className="panel-heading"><div><h2>A different shape of customer data</h2><p>Active account distribution, calculated across all customers.</p></div><button className="text-link" onClick={()=>setTab('Fingerprints')}>View fingerprints <ArrowRight size={15}/></button></div><div className="distribution">{[['0 active accounts',prod.customers_0_active_accounts,test.customers_0_active_accounts],['1 active account',prod.customers_1_active_account,test.customers_1_active_account],['2+ active accounts',prod.customers_2plus_active_accounts,test.customers_2plus_active_accounts]].map(([label,p,t])=><div className="distribution-group" key={label as string}><strong>{label}</strong><div className="bar-row"><span>PROD</span><div className="bar-track"><div className="bar prod-bar" style={{width:`${Number(p)/prod.customer_count*100}%`}}/></div><b>{percent(Number(p)/prod.customer_count)}</b></div><div className="bar-row"><span>TEST</span><div className="bar-track"><div className="bar test-bar" style={{width:`${Number(t)/test.customer_count*100}%`}}/></div><b>{percent(Number(t)/test.customer_count)}</b></div></div>)}</div></section>}
-          {tab==='State coverage'&&coverage&&<section className="panel"><div className="panel-heading"><div><h2>{coverage.represented_in_test} / {coverage.total_significant_prod_states} states represented</h2><p>{coverage.missing_in_test} missing · {coverage.underrepresented_in_test} underrepresented · exact six-feature combinations</p><p>Underrepresented states are included in represented.</p></div><select aria-label="Filter states" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="ALL">All significant states</option><option value="MISSING">Missing</option><option value="UNDERREPRESENTED">Underrepresented</option><option value="REPRESENTED">Adequately represented</option></select></div><div className="table-scroll"><table><thead><tr><th>Business state</th><th>PROD customers</th><th>PROD prevalence</th><th>TEST customers</th><th>TEST prevalence</th><th>Assessment</th></tr></thead><tbody>{shownStates.map(s=>{const f=findings.find(f=>f.evidence.state_id===s.state_id);return <tr key={s.state_id}><td>{f?<button className="state-link" onClick={()=>void openDetail(f)}>{stateLabel(s)}</button>:stateLabel(s)}</td><td>{number(s.prod_count)}</td><td>{percent(s.prod_prevalence)}</td><td>{number(s.test_count)}</td><td>{percent(s.test_prevalence)}</td><td><span className={`assessment ${s.assessment==='MISSING'?'missing':s.assessment==='UNDERREPRESENTED'?'gap':'good'}`}>{s.assessment.toLowerCase()}</span></td></tr>;})}</tbody></table></div><div className="panel-foot">Support ≥ {coverage.thresholds.minimum_support} · prevalence ≥ {percent(coverage.thresholds.minimum_prevalence)} · underrepresentation: TEST &lt; {percent(coverage.thresholds.underrepresentation_prevalence_ratio)} of PROD prevalence</div></section>}
-          {tab==='Fingerprints'&&<section className="panel fingerprints-panel"><div className="panel-heading"><div><h2>Environment fingerprints</h2><p>Row counts, null rates, distinct values, dates, business metrics, and relationship health.</p></div></div><div className="fingerprint-summary" aria-label="Fingerprint summary"><div><strong>{number(fingerprints.length)}</strong><span>Fingerprint metrics</span></div><div><strong>PROD reference</strong><span>prod_snapshot</span></div><div><strong>TEST</strong><span>test_env</span></div><div><strong>Latest analysis</strong><span>{date(overview.generated_at)}</span></div></div><div className="table-scroll"><table className="fingerprints-table"><thead><tr><th>Scope / metric</th><th>PROD reference</th><th>TEST</th><th>Calculation</th></tr></thead><tbody>{fingerprints.filter(p=>p.environment==='prod_snapshot').map(p=>{const t=fingerprints.find(t=>t.environment==='test_env'&&t.scope===p.scope&&t.metric_name===p.metric_name);const fmt=(v:number|string|null|undefined)=>v==null?'—':typeof v==='number'?(p.metric_name==='null_rate'||p.metric_name==='multi_account_rate'?percent(v):number(v)):date(v);return <tr key={`${p.scope}:${p.metric_name}`}><td><strong>{p.scope}</strong><small className="block">{p.metric_name.replaceAll('_',' ')}</small></td><td>{fmt(p.value)}</td><td>{fmt(t?.value)}</td><td className="method-cell">{p.calculation_method}</td></tr>;})}</tbody></table></div></section>}
+          {tab==='Overview'&&prod&&test&&<section className="panel comparison-panel"><div className="panel-heading"><div><h2>{workspace?.distributionTitle}</h2><p>{workspace?.distributionDescription}</p></div><button className="text-link" onClick={()=>setTab('Fingerprints')}>View fingerprints <ArrowRight size={15}/></button></div><div className="distribution">{(workspace?.distribution || []).map(({label,key})=>[label,prod[key],test[key]]).map(([label,p,t])=><div className="distribution-group" key={label as string}><strong>{label}</strong><div className="bar-row"><span>PROD</span><div className="bar-track"><div className="bar prod-bar" style={{width:`${Number(p)/prod[distributionTotalKey]*100}%`}}/></div><b>{percent(Number(p)/prod[distributionTotalKey])}</b></div><div className="bar-row"><span>TEST</span><div className="bar-track"><div className="bar test-bar" style={{width:`${Number(t)/test[distributionTotalKey]*100}%`}}/></div><b>{percent(Number(t)/test[distributionTotalKey])}</b></div></div>)}</div></section>}
+          {tab==='State coverage'&&coverage&&<section className="panel"><div className="panel-heading"><div><h2>{coverage.represented_in_test} / {coverage.total_significant_prod_states} states represented</h2><p>{coverage.missing_in_test} missing · {coverage.underrepresented_in_test} underrepresented · exact {workspace?.stateFeatureCount}-feature combinations</p><p>Underrepresented states are included in represented.</p></div><select aria-label="Filter states" value={stateFilter} onChange={e=>setStateFilter(e.target.value)}><option value="ALL">All significant states</option><option value="MISSING">Missing</option><option value="UNDERREPRESENTED">Underrepresented</option><option value="REPRESENTED">Adequately represented</option></select></div><div className="table-scroll"><table><thead><tr><th>Business state</th><th>PROD {entityLabel}</th><th>PROD prevalence</th><th>TEST {entityLabel}</th><th>TEST prevalence</th><th>Assessment</th></tr></thead><tbody>{shownStates.map(s=>{const f=findings.find(f=>f.evidence.state_id===s.state_id);return <tr key={s.state_id}><td>{f?<button className="state-link" onClick={()=>void openDetail(f)}>{stateLabel(s)}</button>:stateLabel(s)}</td><td>{number(s.prod_count)}</td><td>{percent(s.prod_prevalence)}</td><td>{number(s.test_count)}</td><td>{percent(s.test_prevalence)}</td><td><span className={`assessment ${s.assessment==='MISSING'?'missing':s.assessment==='UNDERREPRESENTED'?'gap':'good'}`}>{s.assessment.toLowerCase()}</span></td></tr>;})}</tbody></table></div><div className="panel-foot">Support ≥ {coverage.thresholds.minimum_support} · prevalence ≥ {percent(coverage.thresholds.minimum_prevalence)} · underrepresentation: TEST &lt; {percent(coverage.thresholds.underrepresentation_prevalence_ratio)} of PROD prevalence</div></section>}
+          {tab==='Fingerprints'&&<section className="panel fingerprints-panel"><div className="panel-heading"><div><h2>Environment fingerprints</h2><p>Row counts, null rates, distinct values, dates, business metrics, and relationship health.</p></div></div><div className="fingerprint-summary" aria-label="Fingerprint summary"><div><strong>{number(fingerprints.length)}</strong><span>Fingerprint metrics</span></div><div><strong>PROD reference</strong><span>{prodEnv}</span></div><div><strong>TEST</strong><span>{testEnv}</span></div><div><strong>Latest analysis</strong><span>{date(overview.generated_at)}</span></div></div><div className="table-scroll"><table className="fingerprints-table"><thead><tr><th>Scope / metric</th><th>PROD reference</th><th>TEST</th><th>Calculation</th></tr></thead><tbody>{fingerprints.filter(p=>p.environment===prodEnv).map(p=>{const t=fingerprints.find(t=>t.environment===testEnv&&t.scope===p.scope&&t.metric_name===p.metric_name);const fmt=(v:number|string|null|undefined)=>v==null?'—':typeof v==='number'?(p.metric_name==='null_rate'||p.metric_name.endsWith('_rate')?percent(v):number(v)):date(v);return <tr key={`${p.scope}:${p.metric_name}`}><td><strong>{p.scope}</strong><small className="block">{p.metric_name.replaceAll('_',' ')}</small></td><td>{fmt(p.value)}</td><td>{fmt(t?.value)}</td><td className="method-cell">{p.calculation_method}</td></tr>;})}</tbody></table></div></section>}
           <footer className="page-footer"><span><Check size={13}/> Calculated from PostgreSQL · synthetic data · no LLM</span><span>Last analysis: {date(overview.generated_at)}</span></footer>
         </>}
       </main>

@@ -14,7 +14,7 @@
   <build>
     <resources>
       <resource><directory>src/main/resources</directory></resource>
-      <resource><directory>../docs/domain-knowledge</directory><targetPath>domain-knowledge</targetPath><includes><include>knowledge.json</include></includes></resource>
+      <resource><directory>../docs/domain-knowledge</directory><targetPath>domain-knowledge</targetPath><includes><include>knowledge.json</include><include>cards.json</include></includes></resource>
     </resources>
     <plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins>
   </build>

@@ -35,10 +35,12 @@ public record ExplanationInput(ObjectNode evidence, String subject, String asses
     public String contextReference() { return evidence.path("contextReference").asText(); }
     public static ExplanationInput from(JsonNode finding, ObjectMapper mapper) {
         String type = finding.path("finding_type").asText();
+        boolean cards="CARDS".equals(finding.path("domain").asText());
         JsonNode e = finding.path("evidence");
         ObjectNode contract = mapper.createObjectNode();
         contract.put("contractVersion", "1");
         contract.put("findingType", type);
+        if (cards) contract.put("domain","CARDS");
         contract.set("sourceEvidence", e.deepCopy());
         contract.set("prodValue", finding.path("prod_value").deepCopy());
         contract.set("testValue", finding.path("test_value").deepCopy());
@@ -46,7 +48,12 @@ public record ExplanationInput(ObjectNode evidence, String subject, String asses
         String subject, prod, test, assessment;
         switch (type) {
             case "MISSING_STATE", "REPRESENTATION_GAP", "HEALTHY_STATE" -> {
-                if (e.has("features")) {
+                if (cards && e.has("features")) {
+                    contract.set("state",e.get("features").deepCopy());
+                    subject = "kart veri durumu: " + finding.path("title").asText();
+                } else if (cards && "multi_active_card_rate".equals(e.path("metric").asText())) {
+                    subject="birden fazla aktif kartı olan müşteriler";
+                } else if (e.has("features")) {
                     JsonNode f = e.get("features");
                     ObjectNode state = contract.putObject("state");
                     state.set("customerType", f.path("customer_type"));
@@ -68,7 +75,8 @@ public record ExplanationInput(ObjectNode evidence, String subject, String asses
                 JsonNode pp = e.has("prod_prevalence") ? e.get("prod_prevalence") : finding.path("prod_value");
                 JsonNode tp = e.has("test_prevalence") ? e.get("test_prevalence") : finding.path("test_value");
                 String pPct = pct(pp), tPct = pct(tp);
-                prod = pc + " müşteri (%" + pPct + ")"; test = tc + " müşteri (%" + tPct + ")";
+                String unit=cards && e.has("features")?" kart":" müşteri";
+                prod = pc + unit + " (%" + pPct + ")"; test = tc + unit + " (%" + tPct + ")";
                 values.addAll(List.of(pc, pPct, tc, tPct));
                 ObjectNode p = contract.putObject("prod"); p.set("count",e.get("prod_count")); p.set("prevalence", pp); p.put("prevalencePctDisplay",pPct);
                 ObjectNode t = contract.putObject("test"); t.set("count",e.get("test_count")); t.set("prevalence", tp); t.put("prevalencePctDisplay",tPct);
@@ -81,14 +89,15 @@ public record ExplanationInput(ObjectNode evidence, String subject, String asses
                 };
             }
             case "DATA_HEALTH_ISSUE" -> {
-                if (!"closed_customers_with_active_accounts".equals(e.path("metric").asText())) throw new IllegalArgumentException("Unsupported health metric");
-                subject = "kapalı müşteri statüsü ile aktif hesap kombinasyonu";
+                if (!(cards?"closed_cards_with_available_limit":"closed_customers_with_active_accounts").equals(e.path("metric").asText())) throw new IllegalArgumentException("Unsupported health metric");
+                subject = cards?"kapalı kart statüsü ile pozitif kullanılabilir limit kombinasyonu":"kapalı müşteri statüsü ile aktif hesap kombinasyonu";
+                if(cards) {contract.put("cardStatus","CLOSED");contract.put("availableLimitPredicate","> 0");contract.set("violationCount",finding.path("test_value"));}
                 String pc = exact(finding,"prod_value"), tc = exact(finding,"test_value");
-                values.addAll(List.of(pc, tc)); prod = pc + " müşteri"; test = tc + " müşteri";
+                values.addAll(List.of(pc, tc)); prod = pc + (cards?" kart":" müşteri"); test = tc + (cards?" kart":" müşteri");
                 // A finding type/calculation predicate is NOT a configured business rule.
                 boolean rule = "configured_business_rule".equals(e.path("ruleSource").asText()) && !e.path("ruleText").asText().isBlank();
                 contract.put("ruleSource", rule ? "configured_business_rule" : "not_configured");
-                if (rule) contract.set("ruleText",e.get("ruleText"));
+                if (rule && !cards) contract.set("ruleText",e.get("ruleText"));
                 contract.put("assessment", rule ? "CONFIGURED_RULE_VIOLATION" : "REVIEW_CANDIDATE");
                 assessment = rule ? "Tanımlı iş kuralına göre bu kombinasyon geçersiz kabul ediliyor." : "Tanımlı bir iş kuralı sunulmadığı için bu kombinasyon incelemeye adaydır.";
             }
