@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, Check, ChevronRight, Clock3, Database, Layers3, Play, RefreshCw, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { FingerprintPipeline } from './FingerprintPipeline';
 import type { DomainInfo, Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
 
 const number = (v:number) => new Intl.NumberFormat('en-US').format(v);
@@ -143,7 +144,7 @@ export function App() {
       <a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('Overview');}}><span className="brand-icon"><Layers3 size={22}/></span><span>test reality<span className="brand-dot">.</span></span></a>
       <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><select aria-label="Banking workspace domain" value={domain} disabled={running} onChange={e=>changeDomain(e.target.value)}>{domains.map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></div><span className="poc">POC</span></div>
       <div className="nav-label">WORKSPACE</div>
-      <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database]].map(([name,Icon])=>{
+      <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database],['Fingerprint Pipeline',Layers3]].map(([name,Icon])=>{
         const Component=Icon as typeof Activity;
         return <button key={name as string} className={tab===name?'nav-item active':'nav-item'} onClick={()=>setTab(name as string)}><Component size={18}/>{name as string}{name==='Findings'&&overview&&<span className="nav-count">{findings.length}</span>}</button>;
       })}</nav>
@@ -153,13 +154,14 @@ export function App() {
     <div className="main-area">
       <header className="topbar"><div>Workspace <ChevronRight size={14}/><strong>{tab}</strong></div><span className="topbar-tag"><span className="tiny-dot"/> Narrow working POC</span></header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">ENVIRONMENT INTELLIGENCE</div><h1>{tab==='Overview'?'See the gaps. Test with confidence.':tab==='Findings'?'Every finding, backed by evidence.':tab==='State coverage'?'Coverage beyond row counts.':'The shape of your data.'}</h1><p>Compare your production reference with TEST, down to the business states that matter.</p></div><button className="primary" onClick={()=>void run()} disabled={running||loading}>{running?<RefreshCw className="spin" size={16}/>:<Play size={16}/>} {running?'Analyzing environments…':'Run analysis'}</button></div>
+        <div className="page-heading"><div><div className="eyebrow">ENVIRONMENT INTELLIGENCE</div><h1>{tab==='Fingerprint Pipeline'?'Fingerprint Pipeline':tab==='Overview'?'See the gaps. Test with confidence.':tab==='Findings'?'Every finding, backed by evidence.':tab==='State coverage'?'Coverage beyond row counts.':'The shape of your data.'}</h1><p>{tab==='Fingerprint Pipeline'?"PROD ve TEST verisi nasıl ölçülür, fingerprint’e dönüşür ve finding üretir?":"Compare your production reference with TEST, down to the business states that matter."}</p></div>{tab!=='Fingerprint Pipeline'&&<button className="primary" onClick={()=>void run()} disabled={running||loading}>{running?<RefreshCw className="spin" size={16}/>:<Play size={16}/>} {running?'Analyzing environments…':'Run analysis'}</button>}</div>
         {error&&<div className="alert error" role="alert"><ShieldAlert size={18}/>{error}</div>}
         {notice&&<div className="alert notice" role="status"><Check size={17}/>{notice}</div>}
         {overview?.latest_attempt?.status==='FAILED'&&<div className="alert error" role="alert">Latest run failed. Showing the last successful snapshot: {overview.latest_attempt.error_message}</div>}
         <div className="environment-strip"><div className="environment-name"><Database size={19}/><div><span className="micro">REFERENCE ENVIRONMENT</span><strong>{prodEnv} <span className="env-badge prod">PROD</span></strong></div></div><ArrowRight size={19} className="muted"/><div className="environment-name"><Database size={19}/><div><span className="micro">COMPARED ENVIRONMENT</span><strong>{testEnv} <span className="env-badge test">TEST</span></strong></div></div><div className="environment-meta">{prod&&test?<><strong>{number(prod[countKey])} / {number(test[countKey])}</strong><span>{entityLabel} · PROD / TEST</span></>:<span>PostgreSQL · separate schemas</span>}</div><span className="snapshot-status"><span className="tiny-dot"/>{overview?'Analysis saved':'Awaiting analysis'}</span></div>
         {loading&&<div className="empty"><RefreshCw className="spin"/> Loading saved analysis…</div>}
         {!loading&&!overview&&<div className="empty"><Database size={32}/><h2>Start with the data.</h2><p>Run analysis to calculate fingerprints, significant business states, and evidence-based findings.</p></div>}
+        {tab==='Fingerprint Pipeline'&&workspace&&<FingerprintPipeline workspace={workspace} overview={overview} coverage={coverage} fingerprints={fingerprints} findings={findings}/>}
         {overview&&<>
           {(tab==='Overview'||tab==='Findings')&&<div className="metrics-grid">
             {[{label:'Reality gaps',v:overview.reality_gaps,icon:Activity,color:'purple',hint:'Shared patterns, underrepresented in TEST',description:'Patterns present in both environments but materially underrepresented in TEST.'}, {label:'Data health issues',v:overview.data_health_issues,icon:ShieldAlert,color:'red',hint:'Inconsistent business relationships'}, {label:'Missing data states',v:overview.missing_data_states,icon:Layers3,color:'orange',hint:'Significant PROD states with no TEST representation.'}, {label:'TEST data age',v:`${Math.floor(overview.test_data_age_days)} days`,icon:Clock3,color:'blue',hint:`${number(overview.freshness.age_difference_days)} days behind PROD`}].map(m=><div className="metric-card" key={m.label}><div className="metric-label">{m.label}<span className={`metric-icon ${m.color}`}><m.icon size={18}/></span></div><div className="metric-value">{m.v}</div><div className="metric-hint" title={m.description || m.hint}>{m.hint}</div></div>)}
