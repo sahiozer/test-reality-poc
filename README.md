@@ -2,7 +2,7 @@
 
 **POC STATUS: COMPLETE / PASS — technically frozen for executive demo.** See the [completion seal](docs/POC_COMPLETION.md).
 
-A database-derived comparison of synthetic production-reference and test environments. The complete slice is PostgreSQL → fingerprints → business-state coverage → findings → persisted Spring API → React dashboard. The droplet also has an optional local Ollama Turkish explanation layer; analysis remains deterministic. There is no repair action, authentication, or Oracle integration. See [LLM integration](docs/LLM_INTEGRATION.md) for the remote-only setup and fallback.
+A database-derived comparison of synthetic production-reference and test environments. The complete slice is PostgreSQL → fingerprints → business-state coverage → findings → persisted Spring API → React dashboard. The droplet also has an optional local Ollama Turkish explanation layer; analysis remains deterministic. There is no repair action, authentication, or Oracle integration. See [LLM integration](docs/LLM_INTEGRATION.md) for the original deployment setup and fallback, or [Local Setup](docs/LOCAL_SETUP.md) for optional local AI.
 
 ## Project
 
@@ -12,25 +12,28 @@ A database-derived comparison of synthetic production-reference and test environ
 | `analysis/` | Python 3.12, FastAPI, psycopg, Polars; SQL aggregates and deterministic findings |
 | `frontend/` | React, TypeScript, Vite; real API data and finding evidence |
 | `infra/` | Isolated Compose, schema initialization, environment creation, verification |
-| `demo-data/` | Fixed-seed, bounded-batch generator; 120,000 customers per environment |
+| `demo-data/` | Fixed-seed, bounded-batch generators for Customer & Lending and Cards |
 | `docs/` | Architecture, calculations, and five-minute demo |
 
 ## Local run
 
-Prerequisites: Docker Desktop/Engine with Compose, Java 21, Maven, Node 22+ with npm, and Python 3 for orchestration scripts. Python application code runs in the Python 3.12 image.
+**New machine? Start with [Local Setup](docs/LOCAL_SETUP.md).** Only Git and Docker
+with Compose are required; Java, Node and Python builds run inside Docker.
 
 ```sh
-sh infra/run-local.sh
+cp .env.example .env
+./scripts/start-local.sh
+./scripts/init-local.sh
 ```
 
-This creates a random project-only password in ignored `infra/.env`, runs backend tests, builds assets/images, runs real PostgreSQL analysis tests, seeds the demo transactionally, starts the four services, runs analysis, and verifies API values against independent SQL queries. It stops immediately if a command fails.
+Open http://localhost:18080. Both Customer & Lending and Cards are seeded and
+analyzed locally. Ollama is optional; core mode uses deterministic fallback.
+The root `compose.yml` owns the separate `test-reality-local` project and volumes.
+It does not use the droplet, its credentials, tunnel or PIN.
 
-- Dashboard: http://127.0.0.1:18080
-- Backend: http://127.0.0.1:18081
-- Backend health: http://127.0.0.1:18081/actuator/health
-- PostgreSQL and analysis have no published ports.
-
-The generator refuses to append to existing source data or replace a dataset with different parameters. Repeating it with the same recorded seed/version/customer count is a no-op. It intentionally generates a 45-day timestamp gap, fewer multi-account customers, absent feature combinations, and closed TEST customers with active accounts. All displayed measurements are calculated afterward from SQL; none are seeded dashboard values.
+The existing `infra/compose*.yml` and `infra/run-local.sh` are the legacy
+host-toolchain/deployment path. They are retained for the existing deployment;
+do not mix their `test-reality-poc` volumes or `infra/.env` with the new local setup.
 
 ## API
 
@@ -46,6 +49,9 @@ The generator refuses to append to existing source data or replace a dataset wit
 Before the first successful run, result endpoints return 409 with an explicit message. Concurrent runs return 409. Failed runs are recorded and return an error; previous successful results remain available with the failed-attempt status shown. Finding detail returns 404 for unknown IDs.
 
 ## Tests
+
+The existing engineering commands below target the legacy `infra/` stack. For the
+root local stack use `./scripts/verify-local.sh` as described in [Local Setup](docs/LOCAL_SETUP.md).
 
 ```sh
 mvn -f backend/pom.xml test

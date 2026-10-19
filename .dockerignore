@@ -6,3 +6,5 @@
 **/.pytest_cache
 infra/.env
 **/*.log
+.env
+**/.env
