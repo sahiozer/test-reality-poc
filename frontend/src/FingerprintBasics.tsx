@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight, BookOpen, Check, ChevronLeft, ChevronRight, CircleHelp, Database, FileCheck2, Fingerprint as FingerprintIcon, GitCompareArrows, Layers3, ListTree, Pause, Play, ScanLine, ShieldCheck, Sparkles, Square } from 'lucide-react';
 import type { Coverage, DomainInfo, Finding, Fingerprint, Overview } from './types';
 import { basicsHelp, basicsSteps } from './basicsContent';
+import { BasicsStepExplanation, ConceptDefinition } from './BasicsStepExplanation';
 import './basics.css';
 
 const fmt=(v:number)=>new Intl.NumberFormat('en-US').format(v);
@@ -68,9 +69,10 @@ export function FingerprintBasics({workspace,overview,coverage,findings,fingerpr
       <div className="basics-io"><div aria-label="INPUT"><small>INPUT / GİRDİ</small><p>{step.input}</p></div><ArrowRight size={17}/><div aria-label="OUTPUT"><small>OUTPUT / ÇIKTI</small><p>{step.output}</p></div></div>
       <div className="basics-responsibilities"><div aria-label="WHAT IS AUTOMATIC?"><small><Check size={13}/>OTOMATİK OLAN</small><p>{step.automatic}</p></div><div aria-label="WHAT DOES THE USER CONFIGURE?"><small><ShieldCheck size={13}/>SİZİN AYARLADIKLARINIZ</small><p>{step.configure}</p></div></div>
       <div className="basics-tech" aria-label="TECHNOLOGY"><small>TECHNOLOGY / ARAÇLAR <span>· ? ile kısa açıklama</span></small><div>{step.tech.map(name=><HelpTerm key={name} name={name}/>)}</div></div>
+      <BasicsStepExplanation key={`${workspace.id}-${active}`} stage={active} data={data} technical={technical}/>
       {technical&&<section className="basics-technical" aria-label="Technical view details"><h3>Teknik bakış · aynı kayıtlı veri</h3><p>Şemalar: <strong>{overview.environments.join(' → ')}</strong> · {workspace.stateFeatureCount} durum özelliği. Örnekler açıklama amaçlıdır; çalıştırılmaz.</p><div><section><h4>Ortak SQL ölçümü</h4><pre>{`SELECT status, COUNT(*)\nFROM ${overview.environments[0]}.${cards?'card':'customer'}\nGROUP BY status;`}</pre><p>Generic: sayım / null / distinct / tarih.<br/>Domain: iş metriği / ilişki / kural.</p></section><section><h4>Domain tanımı örneği</h4><pre>{JSON.stringify({domain:workspace.id,metric:rateKey,rule:cards?'CLOSED card → available limit = 0':'CLOSED customer → active accounts = 0'},null,2)}</pre></section></div><h4>Mevcut fingerprint kaydı</h4><pre>{JSON.stringify(record,null,2)}</pre></section>}
     </section>
-    <details className="basics-glossary"><summary>Teknoloji ve kavram rehberi</summary><div className="basics-tech">{Object.keys(basicsHelp).map(name=><HelpTerm key={name} name={name}/>)}</div></details>
+    <details className="basics-glossary"><summary>Teknoloji ve kavram rehberi</summary><div className="basics-tech">{Object.keys(basicsHelp).map(name=><HelpTerm key={name} name={name}/>)}</div><div className="basics-reference">{Object.keys(basicsHelp).map(name=><details key={name}><summary>{name==='Metadata queries'?'Metadata':name}</summary><ConceptDefinition name={name}/></details>)}</div></details>
     <p className="basics-footnote">Mevcut POC: PostgreSQL, SQL aggregate, küçük gruplarda Polars, yerel BM25 ve isteğe bağlı Ollama. Oracle, DuckDB, Parquet ve sketch yolları olası genişletmelerdir; bu sayfa connector, kural veya veri değiştirmez.</p>
   </section>;
 }

@@ -59,8 +59,8 @@ test('Business/Technical views share data and preserve workspace selection acros
 });
 
 test('all technology help provides exactly three compact items, keyboard dismissal and hover',async({page})=>{
- await openBasics(page);const guide=page.locator('.basics-glossary');await guide.locator('summary').click();
- const names=['Oracle','PostgreSQL','Metadata queries','Aggregate SQL','Polars','DuckDB','Parquet','DataSketches','Sampling','RAG','LLM','Fingerprint','Domain Config','Comparison engine'];
+ await openBasics(page);const guide=page.locator('.basics-glossary');await guide.locator(':scope > summary').click();
+ const names=['Oracle','PostgreSQL','Metadata queries','Aggregate SQL','Polars','DuckDB','Parquet','DataSketches','Sampling','RAG','LLM','Fingerprint','Domain Config','Coverage','Finding','Comparison engine'];
  for(const name of names){
   const button=guide.getByRole('button',{name:`${name} hakkında`,exact:true});await button.focus();await page.keyboard.press('Enter');
   const popup=guide.getByRole('tooltip');await expect(popup).toBeVisible();await expect(popup.locator('dl>div')).toHaveCount(3);
