@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, Check, ChevronRight, Clock3, Database, Layers3, Play, RefreshCw, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
 import { FingerprintPipeline } from './FingerprintPipeline';
+import { FingerprintBasics } from './FingerprintBasics';
 import type { DomainInfo, Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
 
 const number = (v:number) => new Intl.NumberFormat('en-US').format(v);
@@ -144,7 +145,7 @@ export function App() {
       <a className="brand" href="#" onClick={e=>{e.preventDefault();setTab('Overview');}}><span className="brand-icon"><Layers3 size={22}/></span><span>test reality<span className="brand-dot">.</span></span></a>
       <div className="workspace"><div className="workspace-avatar">TR</div><div><strong>Banking workspace</strong><select aria-label="Banking workspace domain" value={domain} disabled={running} onChange={e=>changeDomain(e.target.value)}>{domains.map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></div><span className="poc">POC</span></div>
       <div className="nav-label">WORKSPACE</div>
-      <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database],['Fingerprint Pipeline',Layers3]].map(([name,Icon])=>{
+      <nav>{[['Overview',Activity],['Findings',ShieldAlert],['State coverage',Layers3],['Fingerprints',Database],['Fingerprint Basics',Layers3],['Fingerprint Pipeline',Layers3]].map(([name,Icon])=>{
         const Component=Icon as typeof Activity;
         return <button key={name as string} className={tab===name?'nav-item active':'nav-item'} onClick={()=>setTab(name as string)}><Component size={18}/>{name as string}{name==='Findings'&&overview&&<span className="nav-count">{findings.length}</span>}</button>;
       })}</nav>
@@ -154,13 +155,14 @@ export function App() {
     <div className="main-area">
       <header className="topbar"><div>Workspace <ChevronRight size={14}/><strong>{tab}</strong></div><span className="topbar-tag"><span className="tiny-dot"/> Narrow working POC</span></header>
       <main>
-        <div className="page-heading"><div><div className="eyebrow">ENVIRONMENT INTELLIGENCE</div><h1>{tab==='Fingerprint Pipeline'?'Fingerprint Pipeline':tab==='Overview'?'See the gaps. Test with confidence.':tab==='Findings'?'Every finding, backed by evidence.':tab==='State coverage'?'Coverage beyond row counts.':'The shape of your data.'}</h1><p>{tab==='Fingerprint Pipeline'?"PROD ve TEST verisi nasıl ölçülür, fingerprint’e dönüşür ve finding üretir?":"Compare your production reference with TEST, down to the business states that matter."}</p></div>{tab!=='Fingerprint Pipeline'&&<button className="primary" onClick={()=>void run()} disabled={running||loading}>{running?<RefreshCw className="spin" size={16}/>:<Play size={16}/>} {running?'Analyzing environments…':'Run analysis'}</button>}</div>
+        <div className="page-heading"><div><div className="eyebrow">ENVIRONMENT INTELLIGENCE</div><h1>{tab==='Fingerprint Basics'?'Fingerprint Basics':tab==='Fingerprint Pipeline'?'Fingerprint Pipeline':tab==='Overview'?'See the gaps. Test with confidence.':tab==='Findings'?'Every finding, backed by evidence.':tab==='State coverage'?'Coverage beyond row counts.':'The shape of your data.'}</h1><p>{tab==='Fingerprint Basics'?"Test Reality veriyi nasıl tanır, özetler ve karşılaştırır?":tab==='Fingerprint Pipeline'?"PROD ve TEST verisi nasıl ölçülür, fingerprint’e dönüşür ve finding üretir?":"Compare your production reference with TEST, down to the business states that matter."}</p></div>{tab!=='Fingerprint Pipeline'&&tab!=='Fingerprint Basics'&&<button className="primary" onClick={()=>void run()} disabled={running||loading}>{running?<RefreshCw className="spin" size={16}/>:<Play size={16}/>} {running?'Analyzing environments…':'Run analysis'}</button>}</div>
         {error&&<div className="alert error" role="alert"><ShieldAlert size={18}/>{error}</div>}
         {notice&&<div className="alert notice" role="status"><Check size={17}/>{notice}</div>}
         {overview?.latest_attempt?.status==='FAILED'&&<div className="alert error" role="alert">Latest run failed. Showing the last successful snapshot: {overview.latest_attempt.error_message}</div>}
         <div className="environment-strip"><div className="environment-name"><Database size={19}/><div><span className="micro">REFERENCE ENVIRONMENT</span><strong>{prodEnv} <span className="env-badge prod">PROD</span></strong></div></div><ArrowRight size={19} className="muted"/><div className="environment-name"><Database size={19}/><div><span className="micro">COMPARED ENVIRONMENT</span><strong>{testEnv} <span className="env-badge test">TEST</span></strong></div></div><div className="environment-meta">{prod&&test?<><strong>{number(prod[countKey])} / {number(test[countKey])}</strong><span>{entityLabel} · PROD / TEST</span></>:<span>PostgreSQL · separate schemas</span>}</div><span className="snapshot-status"><span className="tiny-dot"/>{overview?'Analysis saved':'Awaiting analysis'}</span></div>
         {loading&&<div className="empty"><RefreshCw className="spin"/> Loading saved analysis…</div>}
         {!loading&&!overview&&<div className="empty"><Database size={32}/><h2>Start with the data.</h2><p>Run analysis to calculate fingerprints, significant business states, and evidence-based findings.</p></div>}
+        {tab==='Fingerprint Basics'&&workspace&&<FingerprintBasics workspace={workspace} overview={overview} coverage={coverage} fingerprints={fingerprints} findings={findings}/>}
         {tab==='Fingerprint Pipeline'&&workspace&&<FingerprintPipeline workspace={workspace} overview={overview} coverage={coverage} fingerprints={fingerprints} findings={findings}/>}
         {overview&&<>
           {(tab==='Overview'||tab==='Findings')&&<div className="metrics-grid">
