@@ -19,3 +19,9 @@ healthy() {
     printf '%s\n' "$service: healthy"
   done
 }
+
+print_urls() {
+  frontend_address=$(dc port frontend 8080)
+  backend_address=$(dc port backend 8080)
+  printf '%s\n' 'Frontend:' "http://localhost:${frontend_address##*:}" 'Backend health:' "http://localhost:${backend_address##*:}/actuator/health"
+}

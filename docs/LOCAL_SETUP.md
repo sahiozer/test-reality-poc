@@ -5,7 +5,7 @@ demo generation run in containers. No droplet, cloud account or existing demo
 access is required.
 
 ```sh
-git clone <PRIVATE_REPO_URL>
+git clone https://github.com/sahiozer/test-reality-poc.git
 cd test-reality-poc
 cp .env.example .env
 ./scripts/start-local.sh
@@ -36,17 +36,23 @@ show “Run the first analysis”; finish `init-local.sh` before using that butt
 No host Java, Maven, Node, npm, Python, database, Ollama, jq or browser-test tooling
 is required for the quick start. Multi-stage Docker builds compile Java/React.
 The shell helpers target macOS `/bin/sh` and Linux POSIX shells. Windows is **not
-validated**; WSL2 with Docker integration may work but is not a tested target.
+validated**. For Windows 11, use WSL2 with Docker Desktop's integration enabled
+for that Linux distribution; run all commands inside WSL, including the clone.
+Keep the checkout in the WSL Linux filesystem (for example `~/test-reality-poc`),
+where Git preserves executable permissions. Do not run these `.sh` entrypoints
+in native PowerShell; Git Bash has not been tested. No separate PowerShell
+wrappers are required. The repository enforces LF endings for shell scripts.
+This is the recommended Windows execution path, not a claim of tested Windows support.
 The clean-install validation used macOS Apple Silicon / Docker Desktop with Linux
 ARM64 containers. A native Linux Engine host has not been separately tested;
 the configuration uses portable Compose features and POSIX shell helpers.
 
 ## 2. Clone
 
-Use the URL supplied by the repository owner, for example:
+Clone the private repository after authenticating with your approved GitHub credential manager:
 
 ```sh
-git clone git@github.com:<ORG>/<PRIVATE_REPO>.git test-reality-poc
+git clone https://github.com/sahiozer/test-reality-poc.git
 cd test-reality-poc
 ```
 
@@ -91,7 +97,11 @@ The root `compose.yml` and helpers use project **`test-reality-local`**, network
 when AI is enabled, `test-reality-local_ollama_models`. Do not override the Compose
 project name when following this guide; helpers explicitly select this project.
 It is separate from the existing `infra/compose*.yml` deployment and `infra/.env`.
-No machine-specific path or remote host is needed.
+No machine-specific path or remote host is needed. The macOS clean-install test
+also used a restrictive `umask 077`: the analysis image normalizes read/search
+permissions on packaged source while continuing to run as non-root UID 10001;
+the frontend image also sets its nginx configuration to a readable file mode.
+The quick start never uses an existing host `target/`, `dist/` or `node_modules/`.
 
 ## 4. Start core stack
 
@@ -180,6 +190,21 @@ Before data/first analysis is initialized, use:
 docker compose ps
 ```
 
+Optional developer browser validation uses the repository's locked test tooling
+and an installed Google Chrome (host Node/npm are needed only for these tests,
+not for the quick start):
+
+```sh
+cd frontend
+npm ci
+LOCAL_INSTALL_SMOKE=1 DASHBOARD_URL=http://127.0.0.1:18080 npx playwright test --config playwright.config.cjs
+```
+
+This opt-in test expects initialized **core mode** (`LLM_ENABLED=false`). It checks
+both workspaces, all pages, evidence/context, deterministic fallback and refresh.
+Use your configured frontend port if changed. Live-model tests are separately
+opt-in; simulated async UI tests still run in the normal suite.
+
 ## 8. Open dashboard
 
 - Dashboard: **http://localhost:18080**
@@ -195,8 +220,8 @@ and its security/expiry configuration are not part of this local setup.
 ## 9. Run first analysis
 
 `init-local.sh` saves the first result for **each** workspace when none exists.
-Open the selector and explore Overview, Findings, State coverage, Fingerprints
-and Fingerprint Pipeline. Workspace selection survives refresh.
+Open the selector and explore Overview, Findings, State coverage, Fingerprints,
+Fingerprint Basics and Fingerprint Pipeline. Workspace selection survives refresh.
 
 To refresh a saved result, select the workspace and click **Run analysis**.
 Equivalent explicit API commands are:
@@ -270,6 +295,20 @@ from PENDING to GENERATED or FALLBACK. Cached explanations return immediately.
 RAG uses packaged local BM25 corpora (separate domain rules); there is no external
 embedding API. Core-mode fallback and AI-mode results use separate cache keys.
 
+For optional developer validation on a fresh AI-mode explanation cache (after the
+model pull, with host Node/npm and Chrome as described above):
+
+```sh
+cd frontend
+LOCAL_INSTALL_AI=1 LLM_LIVE=1 DASHBOARD_URL=http://127.0.0.1:18080 npx playwright test --config playwright.config.cjs live-explanation.spec.cjs live-rag.spec.cjs local-install-ai.spec.cjs
+```
+
+The local AI smoke test expects the first Cards health explanation to be uncached
+so it can observe `PENDING`, navigate while generation runs, and check the saved
+result. A previously used AI cache is not a failed installation; use a deliberate
+fresh disposable local project for this qualification, not a data wipe on a
+working installation.
+
 To return to core, set `LLM_ENABLED=false`, clear `COMPOSE_PROFILES`, then:
 
 ```sh
@@ -332,6 +371,24 @@ and documented ordering. Do not resolve migration failures by automatically
 wiping data. For meaningful local data, take a PostgreSQL dump before upgrading;
 this POC's reset path is for disposable synthetic data only.
 
+### Cold-build qualification
+
+For an installation audit, after explicitly resetting this disposable local
+project, build without reusing application build layers before the ordinary
+start/init commands:
+
+```sh
+docker compose build --pull --no-cache
+./scripts/start-local.sh
+./scripts/init-local.sh
+./scripts/verify-local.sh
+```
+
+This fetches dependencies again; it does not prune another project's images or
+caches. The clean-room rerun uses a new clone and new database/model volumes,
+not files copied from a prior checkout. Normal quick starts do not require the
+extra cold-build command.
+
 ## 15. Troubleshooting
 
 All commands below target the root local Compose file, not `infra/compose.yml`.
@@ -351,6 +408,25 @@ credentials into support messages.
 | Stale volume/schema mismatch | Run the upgrade/migrate-only path. Never replay the fresh-volume initializer against populated schemas. |
 | Migration fails / base tables missing | Stop initialization; inspect PostgreSQL logs and which volume/project is in use. Preserve data for investigation. For disposable failed first initialization only, explicitly reset and retry. |
 | Build cannot download dependencies | Check registry/network/proxy access and disk. No prebuilt host `target/`, `dist/` or `node_modules/` should be copied into the checkout. Retry after connectivity is restored. |
+
+### First-install network access and corporate proxies
+
+The core first build needs the private GitHub repository, Docker Hub (including
+its authentication and image/CDN endpoints), Maven Central
+(`repo.maven.apache.org`), the npm registry (`registry.npmjs.org`), and PyPI
+(`pypi.org` / `files.pythonhosted.org`). Optional AI additionally needs the Ollama
+model registry (`registry.ollama.ai`) and its redirected blob-storage/CDN hosts.
+A browser may optionally request Google Fonts; system fonts work when blocked.
+There is no external embedding or inference API.
+
+Use the organization's approved GitHub authentication and Docker Desktop/Engine
+proxy and certificate configuration. Container/build traffic must be allowed too;
+a working browser or host curl alone does not establish build-time access.
+Do not disable TLS verification, bake proxy credentials into images, or put
+credentials into clone URLs. A corporate TLS-inspection certificate may need
+an organization-approved build-image trust configuration; this has not been
+tested here. These external network policies cannot be solved by changing demo
+metrics or by copying artifacts from another workstation.
 
 ## 16. Architecture summary
 

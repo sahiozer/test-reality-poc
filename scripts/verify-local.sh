@@ -4,5 +4,9 @@
 healthy postgres analysis backend frontend
 if [ -n "$(dc --profile ai ps -q ollama)" ]; then healthy ollama; fi
 dc exec -T analysis python /opt/local-tools/manage.py verify "${1:-}"
-printf '%s\n' 'Local verification passed. Dashboard:'
-dc port frontend 8080
+if [ "${1:-}" = --services-only ]; then
+  printf '%s\n' 'Services are healthy. Next: ./scripts/init-local.sh'
+else
+  printf '%s\n' 'Test Reality is ready'
+fi
+print_urls

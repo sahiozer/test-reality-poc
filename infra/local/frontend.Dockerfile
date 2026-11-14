@@ -8,4 +8,4 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.28-alpine
 COPY --from=build /build/dist /usr/share/nginx/html
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chmod=0644 frontend/nginx.conf /etc/nginx/conf.d/default.conf

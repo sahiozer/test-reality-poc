@@ -8,5 +8,7 @@ COPY analysis/tests ./tests
 COPY infra/init.sql ./init.sql
 COPY infra/cards.sql ./cards.sql
 COPY demo-data ./demo_data
+# Keep non-root startup independent of the host checkout umask.
+RUN chmod -R a+rX /app
 USER 10001:10001
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
