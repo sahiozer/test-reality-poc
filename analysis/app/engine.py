@@ -16,7 +16,8 @@ TABLES = {
     "card": ["card_id", "customer_id", "card_type", "status"],
 }
 DATES = {"customer": "created_at", "account": "opened_at"}
-FEATURES = ["customer_type", "account_count_bucket", "has_fx_account", "has_active_loan", "has_active_card", "has_blocked_account"]
+from app.repair_model import STATE_FEATURES
+FEATURES = STATE_FEATURES['CUSTOMER_LENDING']
 MIN_SUPPORT = 100
 MIN_PREVALENCE = 0.001
 UNDERREPRESENTATION_RATIO = 0.5
@@ -67,38 +68,13 @@ def table_fingerprints(conn, env, timestamp, tables=None, dates=None):
 
 
 def grouped_features(conn, env):
-    # Identifiers can only originate in our schema allowlist.
-    if env not in SCHEMAS:
-        raise ValueError("Unknown environment")
-    query = f"""
-    WITH a AS (
-      SELECT customer_id, COUNT(*) FILTER (WHERE status='ACTIVE') AS active_accounts,
-             BOOL_OR(currency <> 'TRY') AS fx, BOOL_OR(blocked_flag) AS blocked
-      FROM {env}.account GROUP BY customer_id
-    ), l AS (
-      SELECT customer_id, BOOL_OR(status='ACTIVE') AS active_loan FROM {env}.loan GROUP BY customer_id
-    ), k AS (
-      SELECT customer_id, BOOL_OR(status='ACTIVE') AS active_card FROM {env}.card GROUP BY customer_id
-    ), features AS (
-      SELECT c.customer_type, c.status AS customer_status,
-        CASE WHEN COALESCE(a.active_accounts,0)=0 THEN '0'
-             WHEN a.active_accounts=1 THEN '1' ELSE '2+' END AS account_count_bucket,
-        COALESCE(a.fx,false) AS has_fx_account,
-        COALESCE(l.active_loan,false) AS has_active_loan,
-        COALESCE(k.active_card,false) AS has_active_card,
-        COALESCE(a.blocked,false) AS has_blocked_account
-      FROM {env}.customer c
-      LEFT JOIN a USING(customer_id) LEFT JOIN l USING(customer_id) LEFT JOIN k USING(customer_id)
-    )
-    SELECT customer_type, customer_status, account_count_bucket, has_fx_account,
-      has_active_loan, has_active_card, has_blocked_account, COUNT(*) AS count
-    FROM features GROUP BY 1,2,3,4,5,6,7
-    """
+    from app.repair_model import measurement_query
     with conn.cursor(row_factory=dict_row) as cur:
-        return cur.execute(query).fetchall()
+        return cur.execute(measurement_query('CUSTOMER_LENDING',env)).fetchall()
 
 
 def business_metrics(rows):
+    from app.repair_model import customer_health_group
     total = sum(r["count"] for r in rows)
     count = lambda predicate: sum(r["count"] for r in rows if predicate(r))
     counts = {
@@ -108,7 +84,7 @@ def business_metrics(rows):
         "customers_with_fx_accounts": count(lambda r: r["has_fx_account"]),
         "customers_with_active_loans": count(lambda r: r["has_active_loan"]),
         "customers_with_active_cards": count(lambda r: r["has_active_card"]),
-        "closed_customers_with_active_accounts": count(lambda r: r["customer_status"] == "CLOSED" and r["account_count_bucket"] != "0"),
+        "closed_customers_with_active_accounts": count(customer_health_group),
     }
     return {"customer_count": total, **counts,
             "multi_account_rate": counts["customers_2plus_active_accounts"] / total if total else None}
@@ -249,5 +225,6 @@ def analyze(conn, run_id, now=None, domain="CUSTOMER_LENDING"):
                 "data_health_issues": sum(f["finding_type"] == "DATA_HEALTH_ISSUE" for f in result_findings),
                 "missing_data_states": states["missing_in_test"], "test_data_age_days": freshness["test_age_days"],
                 "business_metrics": business, "freshness": freshness, "environments": list(SCHEMAS)}
-    return {"run_id": run_id, "generated_at": timestamp, "dataset": {k: serial(v) for k, v in dataset.items()},
-            "overview": overview, "fingerprints": metrics, "coverage": states, "findings": result_findings}
+    from app.local_repair import attach
+    return attach({"run_id": run_id, "generated_at": timestamp, "dataset": {k: serial(v) for k, v in dataset.items()},
+            "overview": overview, "fingerprints": metrics, "coverage": states, "findings": result_findings}, groups, domain, conn)

@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from psycopg.rows import dict_row
 from app.engine import table_fingerprints, metric, coverage, findings, serial, describe_state
 SCHEMAS=('prod_cards','test_cards')
-FEATURES=['card_type','physical_virtual','card_status','active_card_count_bucket','has_available_limit','high_limit_bucket','has_recent_status_change','has_physical_and_virtual']
+from app.repair_model import STATE_FEATURES
+FEATURES = STATE_FEATURES['CARDS']
 TABLES={
  'card':['card_id','customer_id','card_type','status','physical_virtual','created_at'],
  'card_account':['card_id','account_id','relationship_type'],
@@ -13,24 +14,12 @@ TABLES={
 DATES={'card':'created_at','card_limit':'effective_at','card_status_history':'changed_at'}
 
 def grouped_features(conn, env):
-    if env not in SCHEMAS:raise ValueError('Unknown Cards environment')
+    from app.repair_model import measurement_query
     with conn.cursor(row_factory=dict_row) as cur:
-        return cur.execute(f'''WITH entities AS (
-          SELECT customer_id, COUNT(*) FILTER(WHERE status='ACTIVE') AS active,
-            COUNT(DISTINCT physical_virtual)>1 AS mixed FROM {env}.card GROUP BY customer_id
-        ), history AS (SELECT card_id,MAX(changed_at) AS latest FROM {env}.card_status_history GROUP BY card_id),
-        cutoff AS (SELECT MAX(changed_at) AS latest FROM {env}.card_status_history)
-        SELECT c.card_type,c.physical_virtual,c.status AS card_status,
-          CASE WHEN e.active=0 THEN '0' WHEN e.active=1 THEN '1' ELSE '2+' END AS active_card_count_bucket,
-          COALESCE(l.available_limit>0,false) AS has_available_limit,
-          CASE WHEN l.total_limit>=50000 THEN 'HIGH' ELSE 'STANDARD' END AS high_limit_bucket,
-          COALESCE(h.latest>=cutoff.latest-INTERVAL '7 days',false) AS has_recent_status_change,
-          e.mixed AS has_physical_and_virtual, COUNT(*) AS count
-        FROM {env}.card c JOIN entities e USING(customer_id)
-        LEFT JOIN {env}.card_limit l USING(card_id) LEFT JOIN history h USING(card_id) CROSS JOIN cutoff
-        GROUP BY 1,2,3,4,5,6,7,8''').fetchall()
+        return cur.execute(measurement_query('CARDS',env)).fetchall()
 
 def business_metrics(conn,env):
+    from app.repair_model import CLOSED_CARD_VIOLATION
     with conn.cursor(row_factory=dict_row) as cur:
         totals=cur.execute(f'''WITH entities AS (SELECT customer_id,COUNT(*) FILTER(WHERE status='ACTIVE') AS active,
          COUNT(DISTINCT physical_virtual)>1 AS mixed FROM {env}.card GROUP BY customer_id)
@@ -45,7 +34,7 @@ def business_metrics(conn,env):
          COUNT(*) FILTER(WHERE card_type='DEBIT') AS debit_cards, COUNT(*) FILTER(WHERE card_type='CREDIT') AS credit_cards,
          COUNT(*) FILTER(WHERE total_limit>=50000) AS high_limit_cards,
          COUNT(*) FILTER(WHERE available_limit>0) AS positive_available_limit_cards,
-         COUNT(*) FILTER(WHERE c.status='CLOSED' AND available_limit>0) AS closed_cards_with_available_limit
+         COUNT(*) FILTER(WHERE {CLOSED_CARD_VIOLATION}) AS closed_cards_with_available_limit
          FROM {env}.card c LEFT JOIN {env}.card_limit l USING(card_id)''').fetchone())
     totals['multi_active_card_rate']=totals['entities_2plus_active_cards']/totals['entity_count'] if totals['entity_count'] else None
     totals['physical_virtual_combination_rate']=totals['entities_with_physical_and_virtual']/totals['entity_count'] if totals['entity_count'] else None
@@ -79,4 +68,5 @@ def analyze_cards(conn,run_id,now=None):
     freshness={'prod_latest':serial(p),'test_latest':serial(t),'age_difference_days':(p-t).total_seconds()/86400 if p and t else None,'test_age_days':(now-t).total_seconds()/86400 if t else None}
     fs=findings(run_id,business[SCHEMAS[0]],business[SCHEMAS[1]],states,freshness,timestamp,domain='CARDS')
     overview={'reality_gaps':sum(f['finding_type']=='REPRESENTATION_GAP' for f in fs),'data_health_issues':sum(f['finding_type']=='DATA_HEALTH_ISSUE' for f in fs),'missing_data_states':states['missing_in_test'],'test_data_age_days':freshness['test_age_days'],'business_metrics':business,'freshness':freshness,'environments':list(SCHEMAS)}
-    return {'domain':'CARDS','run_id':run_id,'generated_at':timestamp,'dataset':{k:serial(v) for k,v in dataset.items()},'overview':overview,'fingerprints':metrics,'coverage':states,'findings':fs}
+    from app.local_repair import attach
+    return attach({'domain':'CARDS','run_id':run_id,'generated_at':timestamp,'dataset':{k:serial(v) for k,v in dataset.items()},'overview':overview,'fingerprints':metrics,'coverage':states,'findings':fs},groups,'CARDS',conn)

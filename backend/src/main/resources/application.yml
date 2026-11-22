@@ -28,3 +28,6 @@ management:
   endpoint:
     health:
       show-details: never
+
+local:
+  repair-enabled: ${LOCAL_TEST_REPAIR_ENABLED:false}

@@ -46,6 +46,8 @@ services:
     build: {context: ., dockerfile: analysis/Dockerfile}
     environment:
       DATABASE_URL: postgresql://test_reality:${DATABASE_PASSWORD}@postgres:5432/test_reality
+      LOCAL_TEST_REPAIR_ENABLED: "true"
+      REPAIR_DATABASE_URL: postgresql://test_reality_repair:${REPAIR_DATABASE_PASSWORD:-local_repair_only_change_me}@postgres:5432/test_reality
     volumes: ["./scripts/local:/opt/local-tools:ro"]
     depends_on:
       postgres: {condition: service_healthy}
@@ -70,6 +72,7 @@ services:
       DATABASE_USER: test_reality
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       ANALYSIS_URL: http://analysis:8000
+      LOCAL_TEST_REPAIR_ENABLED: "true"
       LLM_ENABLED: ${LLM_ENABLED:-false}
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: qwen2.5:0.5b

@@ -145,8 +145,10 @@ The exact schema sequence on an **empty** PostgreSQL volume is:
 5. `init-local.sh` checks the base tables and reapplies `cards.sql` transactionally
    and idempotently before invoking the generators.
 
-There is **no Flyway/Liquibase framework**. No product SQL migration was changed
-for this setup. `init.sql` is a first-volume initializer, **not** an upgrade script;
+There is **no Flyway/Liquibase framework**. The base source-schema SQL remains
+unchanged. When local repair is enabled, analysis startup also applies the additive
+`app/local_repair.sql` metadata migration and restricted writer grants. `init.sql`
+is a first-volume initializer, **not** an upgrade script;
 never replay it on populated schemas. PostgreSQL entrypoint SQL is not rerun for
 an existing volume. For the current additive migration only:
 
@@ -428,12 +430,103 @@ an organization-approved build-image trust configuration; this has not been
 tested here. These external network policies cannot be solved by changing demo
 metrics or by copying artifacts from another workstation.
 
+## Local TEST demand and repair
+
+The root local Compose stack opts into `LOCAL_TEST_REPAIR_ENABLED=true` for
+backend and analysis. The legacy deployment files do not enable this feature;
+its API is absent by default. No remote installation or public demo is changed.
+Analysis startup applies an additive local migration in `app/local_repair.sql`
+and provisions the dedicated `test_reality_repair` role. Its password comes from
+`REPAIR_DATABASE_PASSWORD` (a synthetic local default in `.env.example`). The
+writer can access only the allowlisted TEST tables and demand/audit metadata;
+it has no PROD schema access, table-write privileges, superuser status or role
+memberships. Source measurements continue through the existing read-only analysis.
+
+QA demand is available on all compatible population/state findings. Capabilities
+are explicit API fields: `demandCapability=COUNT_BASED|NONE` and
+`repairCapability=AUTOMATED|NOT_AVAILABLE`. Compatibility uses typed saved count
+evidence and coverage state definitions, never finding titles or an LLM.
+
+- Missing and underrepresented states use their exact saved TEST state count
+  (customers in Customer & Lending; cards in Cards).
+- The two headline multi-active-account/card findings use their saved matching
+  **customer** count, not the displayed percentage.
+- Health violations, freshness/age and untyped percentages/technical findings
+  have no count-demand workflow. They retain their existing evidence/AI behavior.
+
+The existing `metadata.test_requirement` table is migrated in place from a domain
+primary key to `(domain, metric_key)`. Existing recipe keys/requirements survive.
+State keys use `state:<state_id>` and persist across run IDs; if a defined state
+becomes represented and no longer generates an engine finding, its QA review row
+remains visible. Engine counts/fingerprints are not inflated by QA review rows.
+
+The two existing repair scenarios are now explicit, separately named QA rows;
+no narrower scenario count is substituted for a broader headline finding:
+
+- Customer & Lending: OPEN customer, at least two ACTIVE accounts, at least one
+  account with `blocked_flag=true`. Repair adds one OPEN RETAIL customer and two
+  ACTIVE TRY accounts (one blocked) per qualifying customer.
+- Cards: ACTIVE CREDIT card with positive available limit, belonging to a customer
+  with at least two ACTIVE cards. Each qualifying CREDIT card requires a new
+  card customer, funding account, two ACTIVE PHYSICAL cards (CREDIT + DEBIT), two
+  card-account links, two limits and two history records. The DEBIT companion
+  supports the count bucket but is not itself a qualifying CREDIT card.
+
+The Findings list shows a read-only QA badge and TEST/required/needed summary.
+Requirement inputs stay in detail, marked **Defined by QA**. QA saves an integer
+need (0–2,147,483,647), with an optional reason of up to 500 characters.
+`needed = max(required - observed, 0)`; PROD never defines required demand.
+Representation is shown separately from sufficiency. A matching population count
+is not a certification that its data is free of health issues.
+
+QA workflow statuses are Needs QA Review, Need Defined (awaiting fresh data),
+X Needed, QA Need Met, Repair Pending Verification and Repair Verified. A finding
+can remain underrepresented relative to PROD while satisfying the QA need.
+Only a fresh saved analysis at the current TEST revision can verify a repair;
+verification is scoped to the same domain, metric key and saved required count.
+
+Supported state, headline and legacy predicates use the generic population planner.
+Unsupported predicates retain QA demand and show their specific guided-resolution
+reason; no SQL is generated for them. Preview and Apply use the same canonical
+plan and parameterized statements, with a confirmation and stale
+preview protection. IDs/timestamps, audit rows and the shared analysis/repair
+lock are server-managed. Single operations remain capped at 100 qualifying
+entities. Dates reuse TEST business time rather than advancing freshness.
+
+**DEMO / TEST DATA LAB** remains collapsed for automated population predicates.
+It removes only their owned negative-ID synthetic entities, scoped by domain and
+metric key, in FK-safe transactions. An
+excessive request is rejected explicitly with `Maximum removable: N`; seeded or
+ordinary TEST entities and PROD references cannot be used to satisfy it.
+Re-run analysis after injection. Neither demand nor repair depends on Ollama.
+
+The existing `verify-local.sh` baseline checks are intentionally unchanged:
+intentional repair changes source counts/metrics. To return to baseline, use
+Inject Gap to remove the intended repair-created entities for each metric and re-run both
+analyses before running baseline verification. Do not alter baseline assertions
+or reset a working database simply to make the baseline checker pass.
+
+Optional developer repair validation (host Node/npm + Chrome) must target a
+disposable, independently initialized local project. Example after assigning that
+project frontend port 38080:
+
+```sh
+cd frontend
+LOCAL_REPAIR_SMOKE=1 DASHBOARD_URL=http://127.0.0.1:38080 npx playwright test --config playwright.config.cjs repair.spec.cjs qa-demand.spec.cjs
+```
+
+Use that disposable project's frontend port if changed. These opt-in tests add
+and then remove owned synthetic entities; saved requirements/audit rows remain.
+Do not run them against a working demo whose QA requirements must be preserved.
+They are skipped by the ordinary baseline browser suite.
+
 ## 16. Architecture summary
 
 PostgreSQL source schemas → Python SQL aggregation / shared deterministic engine
 → persisted Spring Boot API → React dashboard. Finding explanations add local
 BM25 RAG context and optionally async CPU Ollama. LLM does not calculate metrics,
-coverage or findings. Source generators and SQL migrations are unchanged.
+coverage or findings. Source generators and base source-schema DDL are unchanged;
+local demand/repair adds its own metadata migration and restricted writer grants.
 
 ## 17. Security note
 
@@ -443,3 +536,112 @@ only and the internal services have no published ports. Builds/downloads need
 outbound internet; the local application does not depend on the existing droplet
 or external inference services. This setup adds no public gateway, authentication
 service, Cloudflare tunnel or firewall rule. It never modifies Binance resources.
+
+### Generic repair extension: inspection of the existing local draft
+
+Before extending behavior, the local draft was inspected: engine findings contain typed
+`evidence.metric` or coverage `state_id`/`features`. Coverage groups six Customer &
+Lending features and eight Cards features, derived from relational aggregates; state
+IDs hash these feature dictionaries. QA requirements are independently persisted by
+`(domain, metric_key)`. The initial automated predicates are
+`open_customer_multi_active_blocked` (OPEN customer, at least two ACTIVE accounts,
+any blocked account) and `active_credit_multi_card_available` (ACTIVE CREDIT card,
+positive available limit, owner with at least two ACTIVE cards). Their previous
+materializers inserted fixed TEST graphs, using negative sequence-derived IDs.
+The dedicated `test_reality_repair` login cannot write PROD; it shares the analysis
+advisory lock. An ownership ledger ties generated customer roots to repair audits.
+Inject Gap removes only those owned roots and their dependent rows. Revision and
+latest saved analysis checks prevent stale apply; verification requires a fresh
+analysis after the write. These metric keys, persistence and safeguards are retained
+while replacing fixed recipes with predicates, reusable graph builders and a renderer.
+Health findings already have deterministic violation metrics, but previously had no
+correction policy or write path. Freshness remains guidance only.
+
+### Generic population and data health repairs (local opt-in)
+
+`analysis/app/repair_model.py` owns the canonical feature registry, measurement
+projections, typed state-to-predicate adapters, physical relationship graph,
+immutable population plan, synthetic row builders and PostgreSQL renderer.
+The engine still produces the same fingerprints and coverage states. Both original
+metric keys now resolve to predicates and use the same planner as other count
+findings. No display-text parsing, recipe-specific SQL or LLM mutation is used.
+
+The planner supports the current handwritten domain feature/relationship model;
+it is not an arbitrary-schema or plugin-based engine. Catalog adapters still map
+headline and legacy metric names, and legacy measurement predicates retain their
+compatibility definitions. The HTTP API accepts only keys from saved analysis
+definitions. New canonical predicates can be exercised through engine components,
+but arbitrary new predicate registration through HTTP is not implemented.
+
+A preview binds the canonical plan, QA target, latest analysis ID, TEST timestamp
+and revision into its token. Apply reconstructs this plan under the shared lock,
+checks the token and live predicate count, writes bound values in FK order, checks
+the exact increase and records its plan/provenance atomically. IDs use negative
+sequence blocks (1000 IDs per owned root); timestamps preserve the existing TEST
+cutoff. Inject Gap selects ownership by domain AND metric, removes only those
+synthetic root graphs, including optional loans/cards, and checks count impact.
+Old requirements, repairs and ownership remain readable after additive migration.
+
+Health corrections are a separate family, with allowed violations zero and an
+explicit local synthetic-data policy. BR-CUSTOMER-001 closes ACTIVE TEST accounts
+belonging to CLOSED customers; BR-CARD-001 zeros the available limit of CLOSED
+TEST cards. Preview shows affected business entities separately from physical
+rows. Apply requires confirming that policy and its exact immutable target set.
+The restricted role can update only `test_env.account.status` and
+`test_cards.card_limit.available_limit`; it cannot reopen customers/cards or
+change other columns. Health is pending until a subsequent analysis meets target.
+Audits include family, key, revision, canonical plan/hash, action, entity/row
+counts, before/verification analysis IDs and verification result. The resolver
+records verification when reading the new saved analysis. No policy means guided
+repair. Freshness offers refresh/reprovision guidance and no write controls.
+
+Population generation refuses known health conflicts and predicates it cannot
+safely satisfy or isolate to the requested number of qualifying units. QA demand
+still works for unsupported population predicates, with a specific reason.
+Health injection is deliberately omitted: it would require a distinct owned
+invalid-graph policy. Ordinary Inject Gap never modifies seeded TEST entities.
+
+Run destructive validation in a dedicated disposable Compose project and remove
+only its volumes afterward. Do not apply the health browser tests to the user's
+working database. `GENERIC_REPAIR_SMOKE=1` enables broad population browser checks;
+`GENERIC_HEALTH_SMOKE=1` enables the explicitly destructive health checks, alongside
+`LOCAL_REPAIR_SMOKE=1` for the original repair and QA regressions. Use a separate
+`DASHBOARD_URL` and ports. Full source hashes of both PROD and working TEST schemas
+should remain unchanged across this validation.
+
+Validation of the generic repair extension (2026-11-21):
+
+- Customer & Lending: 29/29 existing count findings plus the original local
+  scenario = 30/30 generic-auto-repairable current count scenarios.
+- Cards: 59/59 existing count findings plus the original local scenario = 60/60.
+- Every measured definition was materialized against PostgreSQL with exact count
+  checks and rollback: 72 Customer & Lending and 112 Cards definitions. No current
+  population finding is demand-only; no current canonical feature is unsupported.
+  This does not promise arbitrary future predicates: unknown features, contradictory
+  constraints, unisolatable card units and known health conflicts are rejected with
+  explicit reasons. Population operations are bounded to 100 qualifying units and
+  each feature's related count to 32.
+- Both health policies verified target zero in disposable fixtures: 2,023 customers
+  / 2,240 account updates, and 872 cards / 872 limit updates. Their exact fixture
+  values were restored before final regression. No health correction or injection
+  was applied to the user's working demo.
+- 69 Python tests passed; Java 34 passed / 2 existing skips; frontend build passed.
+  Final browser regression: 44 passed (39 baseline + 5 existing demand/repair).
+  New browser suite: 6 passed, covering six additional population lifecycles,
+  both health lifecycles and unsupported/guided UI. Together with the original
+  two scenarios, eight distinct population metrics completed preview/apply/rerun/
+  verified/inject cycles. Existing opt-in live-LLM tests remained disabled.
+- A real browser failure exposed a lost open review after Missing transitioned to
+  Underrepresented. Detail selection now follows the stable metric/state key across
+  new engine finding IDs. The new lifecycle tests cover that transition.
+- Both complete working-demo analysis snapshots were reproduced identically with
+  a frozen clock/run ID. Both PROD and both working TEST data hashes stayed equal
+  to their pre-extension values, including the user's existing synthetic repairs.
+- Only the local analysis/backend/frontend containers were refreshed. PostgreSQL
+  and Ollama identities stayed unchanged; all five containers were healthy with
+  zero restarts/OOM at the final check. The disposable project/volume was removed.
+- Local validation generated ignored `.local/` evidence, including before/after
+  hashes, repair audits and desktop/mobile screenshots. These runtime artifacts
+  are intentionally excluded from Git; collaborators receive the source/tests
+  and can create their own local evidence. This validation checkpoint made no
+  deployment, SSH or remote infrastructure changes.

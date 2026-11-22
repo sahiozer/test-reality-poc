@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, Check, ChevronRight, Clock3, Database, Layers3, Play, RefreshCw, Search, ShieldAlert, Sparkles, X } from 'lucide-react';
 import { FingerprintPipeline } from './FingerprintPipeline';
+import { HealthRepair, healthLabel } from './HealthRepair';
+import { TestDemand, qaLabel, qaTone, type Demand } from './TestDemand';
 import { FingerprintBasics } from './FingerprintBasics';
 import type { DomainInfo, Coverage, Finding, FindingDetail, Fingerprint, Overview, Snapshot, State } from './types';
 
@@ -15,7 +17,7 @@ async function api<T>(path:string, init?:RequestInit, domain="CUSTOMER_LENDING")
   }
   return response.json();
 }
-const findingLabel = (type:string) => ({REPRESENTATION_GAP:'Reality gap', MISSING_STATE:'Missing state', DATA_HEALTH_ISSUE:'Data health issue', FRESHNESS_GAP:'Freshness gap'}[type] || type.replaceAll('_',' ').toLowerCase());
+const findingLabel = (type:string) => ({REPRESENTATION_GAP:'Reality gap', MISSING_STATE:'Missing state', DATA_HEALTH_ISSUE:'Data health issue', HEALTH_REVIEW:'Data health review', FRESHNESS_GAP:'Freshness gap'}[type] || type.replaceAll('_',' ').toLowerCase());
 const stateLabel = (s:State) => s.label || `${s.features.customer_type} · ${s.features.account_count_bucket} active accounts · ${s.features.has_fx_account?'FX':'no FX'} · ${s.features.has_active_loan?'active loan':'no active loan'} · ${s.features.has_active_card?'active card':'no active card'} · ${s.features.has_blocked_account?'blocked':'unblocked'}`;
 function value(f:Finding, side:'prod'|'test') {
   const v = side==='prod'?f.prod_value:f.test_value;
@@ -41,6 +43,9 @@ export function App() {
     setDomain(next);
   }
   const [domains,setDomains]=useState<DomainInfo[]>([]);
+  const [demands,setDemands]=useState<Demand[]>([]);
+  const activeDomain=useRef(domain);activeDomain.current=domain;
+  async function refreshDemands(signal?:AbortSignal){const d=await domainApi<Demand[]>('/test-demand/findings',{signal});if(!signal?.aborted&&activeDomain.current===domain)setDemands(d);return d;}
   const workspace=domains.find(d=>d.id===domain);
   async function domainApi<T>(path:string,init?:RequestInit) {return api<T>(path,init,domain);}
   const [overview,setOverview]=useState<Overview|null>(null);
@@ -60,7 +65,7 @@ export function App() {
   const trigger = useRef<HTMLElement|null>(null);
 
   useEffect(()=>{
-    setSelected(null);setOverview(null);setFindings([]);setCoverage(null);setFingerprints([]);setFilter("ALL");setQuery("");setNotice("");
+    setDemands([]);setSelected(null);setOverview(null);setFindings([]);setCoverage(null);setFingerprints([]);setFilter("ALL");setQuery("");setNotice("");
     const controller=new AbortController();void load(controller.signal);return ()=>controller.abort();
   },[domain]);
   useEffect(()=>{
@@ -89,7 +94,7 @@ export function App() {
       if (event.key==='Escape') closeDetail();
       if (event.key==='Tab') {
         const dialog=detailClose.current?.closest('[role="dialog"]');
-        const controls=Array.from(dialog?.querySelectorAll<HTMLElement>('button, summary') || []).filter(control=>control.getClientRects().length);
+        const controls=Array.from(dialog?.querySelectorAll<HTMLElement>('button, summary, input, textarea, select') || []).filter(control=>control.getClientRects().length);
         const first=controls[0],last=controls[controls.length-1];
         if (event.shiftKey && document.activeElement===first) {event.preventDefault();last?.focus();}
         else if (!event.shiftKey && document.activeElement===last) {event.preventDefault();first?.focus();}
@@ -107,6 +112,7 @@ export function App() {
       const [f,c,p]=await Promise.all([domainApi<Finding[]>('/findings',{signal}),domainApi<Coverage>('/states/coverage',{signal}),domainApi<Fingerprint[]>('/fingerprints',{signal})]);
       if(signal.aborted)return;
       setOverview(o);setFindings(f);setCoverage(c);setFingerprints(p);
+      if(descriptors.find(d=>d.id===domain)?.repairEnabled)await refreshDemands(signal);
     } catch(e) {
       if(signal.aborted)return;
       const err=e as Error & {status?:number};
@@ -118,19 +124,32 @@ export function App() {
     setRunning(true);setError('');setNotice('');
     try {
       const r=await domainApi<Snapshot>('/analysis/run',{method:'POST'});
+      const qa=workspace?.repairEnabled?await domainApi<Demand[]>('/test-demand/findings'):[];
+      setDemands(qa);
       setOverview({...r.overview,dataset:r.dataset,run_id:r.run_id,generated_at:r.generated_at,latest_attempt:{status:'SUCCEEDED',error_message:null}});
       setFindings(r.findings);setCoverage(r.coverage);setFingerprints(r.fingerprints);
       setNotice('Analysis complete. All results below were calculated from the current database.');
-    } catch(e) {setError((e as Error).message + (overview?' Previous successful results remain visible.':''));}
+      if(selected){
+        // Engine finding IDs change on each run, including Missing -> Underrepresented.
+        // Keep the open review attached to its stable QA metric or state key.
+        const updated=(selectedDemand?.metric_key?qa.find(d=>d.metric_key===selectedDemand.metric_key)?.finding:undefined) || r.findings.find(f=>
+          selected.evidence.state_id ? f.evidence.state_id===selected.evidence.state_id :
+          !!selected.evidence.metric && f.evidence.metric===selected.evidence.metric);
+        if(updated){const localReview=['QA_DEMAND','HEALTH_REVIEW'].includes(updated.finding_type);setSelected({...updated,deterministicSummary:updated.explanation,aiExplanation:localReview?updated.explanation:'',aiExplanationStatus:localReview?'FALLBACK':'PENDING'});}
+      }
+      return true;
+    } catch(e) {setError((e as Error).message + (overview?' Previous successful results remain visible.':''));return false;}
     finally {setRunning(false);}
   }
   async function openDetail(f:Finding) {
     trigger.current=document.activeElement as HTMLElement;
     // Evidence is already in the persisted snapshot: display it before any LLM request.
-    setSelected({...f,deterministicSummary:f.explanation,aiExplanation:'',aiExplanationStatus:'PENDING'});
+    setSelected({...f,deterministicSummary:f.explanation,aiExplanation:['QA_DEMAND','HEALTH_REVIEW'].includes(f.finding_type)?f.explanation:'',aiExplanationStatus:['QA_DEMAND','HEALTH_REVIEW'].includes(f.finding_type)?'FALLBACK':'PENDING'});
   }
   function closeDetail() {setSelected(null);trigger.current?.focus();}
-  const visible=findings.filter(f=>(filter==='ALL'||f.finding_type===filter)&&`${f.title} ${f.finding_type}`.toLowerCase().includes(query.toLowerCase()));
+  const allFindings=[...findings,...demands.filter(d=>['QA_DEMAND','HEALTH_REVIEW'].includes(d.finding.finding_type)&&!findings.some(f=>f.finding_id===d.finding.finding_id)).map(d=>d.finding)];
+  const selectedDemand=demands.find(d=>d.finding.finding_id===selected?.finding_id);
+  const visible=allFindings.filter(f=>(filter==='ALL'||f.finding_type===filter||(filter==='DATA_HEALTH_ISSUE'&&f.finding_type==='HEALTH_REVIEW'))&&`${f.title} ${f.finding_type}`.toLowerCase().includes(query.toLowerCase()));
   const prodEnv=overview?.environments[0] || workspace?.environments[0] || "";
   const testEnv=overview?.environments[1] || workspace?.environments[1] || "";
   const prod=overview?.business_metrics[prodEnv];
@@ -171,7 +190,7 @@ export function App() {
           {(tab==='Overview'||tab==='Findings')&&<div className={tab==='Overview'?'content-grid':''}>
             <section className="panel findings-panel"><div className="panel-heading"><div><h2>Findings requiring attention <span className="count-pill">{findings.length}</span></h2><p>Calculated evidence, prioritized for review.</p></div><span className="evidence-label"><Sparkles size={13}/> Deterministic evidence</span></div>
               <div className="table-tools"><div className="filter-tabs">{[['ALL','All findings'],['REPRESENTATION_GAP','Reality gaps'],['MISSING_STATE','Missing states'],['DATA_HEALTH_ISSUE','Health']].map(([v,l])=><button key={v} className={filter===v?'selected':''} onClick={()=>setFilter(v)}>{l}</button>)}</div><label className="search"><Search size={15}/><input aria-label="Search findings" placeholder="Find a pattern" value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
-              <div className="table-scroll"><table className="findings-table"><thead><tr><th>Data pattern</th><th>PROD reference</th><th>TEST</th><th>Assessment</th><th><span className="sr-only">Detail</span></th></tr></thead><tbody>{visible.map(f=><tr key={f.finding_id}><td><button className="pattern-button" onClick={()=>void openDetail(f)}><span className={`pattern-symbol ${f.finding_type==='DATA_HEALTH_ISSUE'?'red':f.finding_type==='MISSING_STATE'?'orange':'purple'}`}><Activity size={14}/></span><span><strong>{f.title}</strong><small>{findingLabel(f.finding_type)}</small></span></button></td><td>{value(f,'prod')}</td><td className={f.finding_type==='MISSING_STATE'?'zero-value':''}>{value(f,'test')}</td><td><span className={`assessment ${f.finding_type==='MISSING_STATE'?'missing':f.finding_type==='DATA_HEALTH_ISSUE'?'health':'gap'}`}>{f.finding_type==='MISSING_STATE'?'Missing':f.finding_type==='DATA_HEALTH_ISSUE'?'Inconsistent':f.finding_type==='FRESHNESS_GAP'?'Stale':'Underrepresented'}</span></td><td><button className="icon-button" aria-label={`Open ${f.title}`} onClick={()=>void openDetail(f)}><ArrowUpRight size={16}/></button></td></tr>)}</tbody></table>{visible.length===0&&<div className="empty small">No findings match this filter.</div>}</div><div className="panel-foot">{visible.length} findings · click a pattern to inspect its evidence</div>
+              <div className="table-scroll"><table className="findings-table"><thead><tr><th>Data pattern</th><th>PROD reference</th><th>TEST</th>{workspace?.repairEnabled&&<th>QA regression need</th>}<th>{workspace?.repairEnabled?'Reality signal':'Assessment'}</th><th><span className="sr-only">Detail</span></th></tr></thead><tbody>{visible.map(f=><tr key={f.finding_id}><td><button className="pattern-button" onClick={()=>void openDetail(f)}><span className={`pattern-symbol ${f.finding_type==='DATA_HEALTH_ISSUE'?'red':f.finding_type==='MISSING_STATE'?'orange':'purple'}`}><Activity size={14}/></span><span><strong>{f.title}</strong><small>{findingLabel(f.finding_type)}</small></span></button></td><td>{value(f,'prod')}</td><td className={f.finding_type==='MISSING_STATE'?'zero-value':''}>{value(f,'test')}</td>{workspace?.repairEnabled&&<td className="qa-list-cell">{(()=>{const d=demands.find(d=>d.finding.finding_id===f.finding_id);return d?.demandCapability==='COUNT_BASED'?<><span className={`qa-badge qa-${qaTone(d)}`} data-qa-status={d.qa_status}>{['SUFFICIENT','REPAIR_VERIFIED'].includes(d.qa_status)&&'✓ '}{qaLabel(d)}</span><small>TEST {number(d.usable)} · QA {d.required??'—'} · Needed {d.needed??'—'}</small></>:d?.health_status?<span className={`qa-badge qa-${d.health_status==='DATA_HEALTH_VERIFIED'?'met':'review'}`} data-health-status={d.health_status}>{healthLabel(d)}</span>:<span className="qa-not-applicable">Refresh / reprovision TEST source</span>;})()}</td>}<td><span className={`assessment ${f.finding_type==='MISSING_STATE'?'missing':f.finding_type==='DATA_HEALTH_ISSUE'?'health':'gap'}`}>{demands.find(d=>d.finding.finding_id===f.finding_id)?.representation?.toLowerCase()||(f.finding_type==='MISSING_STATE'?'Missing':f.finding_type==='DATA_HEALTH_ISSUE'?'Inconsistent':f.finding_type==='FRESHNESS_GAP'?'Stale':'Underrepresented')}</span></td><td><button className="icon-button" aria-label={`Open ${f.title}`} onClick={()=>void openDetail(f)}><ArrowUpRight size={16}/></button></td></tr>)}</tbody></table>{visible.length===0&&<div className="empty small">No findings match this filter.</div>}</div><div className="panel-foot">{visible.length} displayed · {findings.length} engine findings{allFindings.length>findings.length?` · ${allFindings.length-findings.length} QA scenarios`:''} · click a pattern to review</div>
             </section>
             {tab==='Overview'&&coverage&&<section className="panel coverage-summary"><div className="panel-heading"><div><h2>Data-state coverage</h2><p>Business combinations, not just rows.</p></div><Layers3 size={19} className="muted"/></div><div className="coverage-ring" style={{'--coverage':`${coverage.total_significant_prod_states?coverage.represented_in_test/coverage.total_significant_prod_states*100:0}%`} as React.CSSProperties}><div><strong>{coverage.total_significant_prod_states?Math.round(coverage.represented_in_test/coverage.total_significant_prod_states*100):0}<span>%</span></strong><small>represented in TEST</small></div></div><div className="coverage-total"><strong>{coverage.represented_in_test}<span> / {coverage.total_significant_prod_states}</span></strong><p>significant PROD states represented</p></div><div className="coverage-stat"><span><i className="legend-dot green"/>Represented</span><strong>{coverage.represented_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot orange"/>Missing</span><strong>{coverage.missing_in_test}</strong></div><div className="coverage-stat"><span><i className="legend-dot purple"/>Underrepresented</span><strong>{coverage.underrepresented_in_test}</strong></div><p className="coverage-note">Underrepresented states are included in represented. Minimum {coverage.thresholds.minimum_support} {entityLabel} and {percent(coverage.thresholds.minimum_prevalence)} PROD prevalence.</p><button className="text-link" onClick={()=>setTab('State coverage')}>Explore state coverage <ArrowRight size={15}/></button></section>}
           </div>}
@@ -187,8 +206,12 @@ export function App() {
         <div className="detail-top"><span className="eyebrow">FINDING EVIDENCE</span><button ref={detailClose} className="icon-button" aria-label="Close finding" onClick={closeDetail}><X size={20}/></button></div>
         <span className={`assessment ${selected.finding_type==='DATA_HEALTH_ISSUE'?'health':selected.finding_type==='MISSING_STATE'?'missing':'gap'}`}>{findingLabel(selected.finding_type)}</span>
         <h2 id="detail-title">{selected.title}</h2>
+        {workspace?.repairEnabled&&selectedDemand?.demandCapability==='COUNT_BASED'&&<TestDemand key={domain+selectedDemand.metric_key} domain={domain} metricKey={selectedDemand.metric_key} onChange={async()=>{await refreshDemands();}} onRun={async()=>{if(!await run())throw new Error('Analysis failed; previous measurements remain visible.');}}/>}
+        {workspace?.repairEnabled&&selectedDemand?.health_status&&<HealthRepair key={domain+selectedDemand.metric_key} data={selectedDemand} onChange={async()=>{await refreshDemands();}} onRun={async()=>{if(!await run())throw new Error('Analysis failed; previous measurements remain visible.');}}/>}
+        {workspace?.repairEnabled&&selected.finding_type==='FRESHNESS_GAP'&&<section className="test-demand" aria-label="Freshness resolution"><h3>Refresh / reprovision TEST source</h3><p>Use a current approved TEST source and re-run analysis. This finding offers guidance only.</p></section>}
         <div className="detail-values"><div><span>PROD reference</span><strong>{value(selected,'prod')}</strong></div><div><span>TEST</span><strong>{value(selected,'test')}</strong></div></div>
         <section className="evidence-summary" aria-labelledby="evidence-summary-title"><h3 id="evidence-summary-title">Evidence summary</h3><p>{selected.finding_type==='DATA_HEALTH_ISSUE' && selected.evidence.metric==='closed_customers_with_active_accounts'?`PROD: ${value(selected,'prod')} customers. TEST: ${value(selected,'test')} customers with CLOSED customer status and at least one ACTIVE account.`:selected.explanation}</p></section>
+        {!['QA_DEMAND','HEALTH_REVIEW'].includes(selected.finding_type)&&<>
         <div className="explanation-flow" aria-label="Engine evidence, locally retrieved context, AI explanation"><span>Evidence</span><ArrowRight size={12}/><span>Context</span><ArrowRight size={12}/><span>Explanation</span></div>
         <section className="ai-explanation" aria-labelledby="ai-explanation-title">
           <div className="detail-section-heading"><h3 id="ai-explanation-title">AI Explanation</h3><small className="ai-status" data-status={selected.aiExplanationStatus}>{selected.aiExplanationStatus==='PENDING'?'Local on-prem AI • Generating…':selected.aiExplanationStatus==='GENERATED'?'Local on-prem AI • Generated':'Template fallback'}</small></div>
@@ -198,6 +221,8 @@ export function App() {
           <div className="detail-section-heading"><h3 id="context-used-title">Context used</h3><small>Retrieved locally</small></div>
           {selected.retrievedContext?.length?<ul>{selected.retrievedContext.map(chunk=><li key={chunk.id}><div className="context-source"><strong>{chunk.id}</strong><span className={`source-badge ${chunk.sourceType==='BUSINESS_RULE'?'rule':''}`}>{chunk.sourceType.replaceAll('_',' ')}</span></div>{chunk.title!==chunk.id&&<small className="context-title">{chunk.title.startsWith(`${chunk.id} — `)?chunk.title.slice(chunk.id.length+3):chunk.title}</small>}<p lang="tr">{chunk.content}</p></li>)}</ul>:<p>{selected.aiExplanationStatus==='PENDING'?'Retrieving local domain context…':'No relevant domain context available; explanation uses structured evidence.'}</p>}
         </section>
+
+        </>}
         <details className="technical-evidence"><summary><span><strong>Technical evidence</strong><small>Calculation method, raw evidence and metric metadata</small></span><ChevronRight size={16}/></summary><div className="technical-evidence-body"><h3>Calculation method</h3><p>{String(selected.evidence.calculation_method || 'See raw evidence below.')}</p><h3>Raw evidence</h3><pre>{JSON.stringify(selected.evidence,null,2)}</pre><h3>Explanation-ready evidence</h3><pre>{JSON.stringify(selected.explanation_ready,null,2)}</pre><div className="detail-meta"><strong>{selected.severity} assessment</strong><span>Calculated {date(selected.generated_at)}</span><code>{selected.finding_id}</code></div></div></details>
       </section>
     </div>}
